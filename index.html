@@ -174,7 +174,7 @@
   .guia .meta{position:relative;z-index:2;color:#5c6b88;font-size:11px;margin-top:7px;letter-spacing:.2px}
   .guia .exames{position:relative;z-index:2;width:100%;margin-top:10px;text-align:left;font-family:Inter;
     font-size:11px;line-height:1.35;color:#1f3a5f;background:#f2f6fc;border:1px dashed #b6c8e6;border-radius:8px;
-    padding:7px 9px;max-height:104px;overflow:auto;white-space:pre-wrap;word-break:break-word;cursor:text}
+    padding:7px 9px;min-height:34px;max-height:104px;overflow:auto;white-space:pre-wrap;word-break:break-word;cursor:text}
   .guia .exame-wrap{position:relative;z-index:2;width:100%;margin-top:8px;max-height:460px;overflow:auto;
     border:1px solid #cdd8ea;border-radius:8px;background:#fff;cursor:zoom-in}
   .guia .exame-img{display:block;width:100%;height:auto}
@@ -400,7 +400,6 @@ function abrirPasta(id){
   const pasta = estado.pastas.find(p=>p.id===id); if(!pasta) return;
   limparSelecao();
   estado.pastaAtual = pasta; estado.view='pasta'; render();
-  carregarImagensPasta(pasta.id);
 }
 
 /* ================= SELEÇÃO EM LOTE ================= */
@@ -615,10 +614,9 @@ function guiaCard(g, numero){
            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
            onblur="salvarNome('guia','${g.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(g.nome)}</div>
-      ${(g.meta&&g.meta.exames)?`<div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
+      <div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
-           onblur="salvarExames('${g.id}',this)">${esc(g.meta.exames).replace(/\n/g,'<br>')}</div>`:''}
-      ${g.exame_img?`<div class="exame-wrap" title="Toque para ampliar" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();verRecorte('${g.id}')"><img class="exame-img" src="${g.exame_img}" alt="Recorte dos exames" draggable="false"></div>`:''}
+           onblur="salvarExames('${g.id}',this)">${esc((g.meta&&g.meta.exames)||'').replace(/\n/g,'<br>')}</div>
       ${carimbosHTML(g.carimbos, 'guia', g.id, trav)}
     </div>
   </div>`;
@@ -860,7 +858,7 @@ async function processarGuiaLancada(g, prog){
   const {data:blob, error} = await sb.storage.from(BUCKET).download(g.arquivo_path);
   if(error || !blob) throw (error||new Error('não achei o arquivo'));
   const ehPdf = /\.pdf$/i.test(g.arquivo_path) || blob.type==='application/pdf';
-  let exames=[]; const bandas=[];
+  let exames=[];
   if(ehPdf){
     const buf = await blob.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({data:buf}).promise;
@@ -870,27 +868,27 @@ async function processarGuiaLancada(g, prog){
       const page = await pdf.getPage(p);
       const tc = await page.getTextContent();
       const txt = tc.items.map(i=>i.str).join(' ');
-      const cvBanda = await renderRegiao(page, 0.60, 0.97, 3.4);
-      bandas.push(cvBanda);
-      if(txt.replace(/\s/g,'').length>60) exames.push(...extrairExames(txt));
-      else exames.push(...extrairExames(await ocrImagem(cvBanda, prog)));
+      if(txt.replace(/\s/g,'').length>60){
+        exames.push(...extrairExames(txt));
+      }else{
+        const cv = await renderRegiao(page, 0.52, 0.99, 3.0);
+        exames.push(...extrairExames(await ocrImagem(cv, prog)));
+      }
     }
   }else{
     const url = URL.createObjectURL(blob);
     const img = await carregarImg(url); URL.revokeObjectURL(url);
     const cv = document.createElement('canvas'); cv.width=img.width; cv.height=img.height;
     cv.getContext('2d').drawImage(img,0,0);
-    bandas.push(cv);
     exames.push(...extrairExames(await ocrImagem(cv, prog)));
   }
   const vistos=new Set(), lista=[];
   for(const e of exames){ const k=e.c||e.d; if(!k||vistos.has(k)) continue; vistos.add(k); lista.push(e); }
   const examesTxt = lista.map(e=> e.c? `${e.c} - ${e.d}` : e.d).join('\n');
-  const imgData = montarBandas(bandas);
   const meta = Object.assign({}, g.meta||{}, {exames:examesTxt});
-  const {error:e2} = await sb.from('mala_guias').update({meta, exame_img:imgData}).eq('id', g.id);
+  const {error:e2} = await sb.from('mala_guias').update({meta}).eq('id', g.id);
   if(e2) throw e2;
-  g.meta = meta; g.exame_img = imgData;
+  g.meta = meta;
 }
 async function carregarImagensPasta(pastaId){
   const alvo = estado.guias.filter(g=>g.pasta_id===pastaId && g.exame_img===undefined);
@@ -939,7 +937,7 @@ function extrairExames(texto){
   const m = t.match(/Exames\s+(?:Requisitados|Solicitados)\s*:?\s*([\s\S]*)$/i);
   const alvo = m ? m[1] : t;
   const out=[];
-  const re=/(\d{6,9})\s*[-–]\s*([^\n;]+?)(?=(?:\s+\d{6,9}\s*[-–])|[\r\n]|$)/g;
+  const re=/(\d{8})\s*[-–]\s*([^\n;]+?)(?=(?:\s+\d{8}\s*[-–])|[\r\n]|$)/g;
   let x;
   while((x=re.exec(alvo))){
     let d = x[2].trim()
