@@ -871,7 +871,7 @@ async function processarGuiaLancada(g, prog){
       if(txt.replace(/\s/g,'').length>60){
         exames.push(...extrairExames(txt));
       }else{
-        const cv = await renderRegiao(page, 0.52, 0.99, 3.0);
+        const cv = await renderRegiao(page, 0, 1, 2.4);
         exames.push(...extrairExames(await ocrImagem(cv, prog)));
       }
     }
@@ -934,19 +934,22 @@ function extrairNome(texto){
 }
 function extrairExames(texto){
   const t = limpar(texto);
-  const m = t.match(/Exames\s+(?:Requisitados|Solicitados)\s*:?\s*([\s\S]*)$/i);
-  const alvo = m ? m[1] : t;
+  const partes = t.split(/Exames\s+(?:Requisitados|Solicitados)\s*:?/i);
   const out=[];
-  const re=/(\d{8})\s*[-–]\s*([^\n;]+?)(?=(?:\s+\d{8}\s*[-–])|[\r\n]|$)/g;
-  let x;
-  while((x=re.exec(alvo))){
-    let d = x[2].trim()
-      .replace(/-{3,}.*$/,'')
-      .replace(/Digitalizado.*$/i,'')
-      .replace(/\s{2,}/g,' ')
-      .replace(/[-–\s]+$/,'')
-      .trim();
-    if(d) out.push({c:x[1], d});
+  for(let i=1;i<partes.length;i++){
+    let seg = partes[i];
+    seg = seg.split(/-{3,}/)[0];
+    seg = seg.split(/S\s?I\s?A\s?S\s?S|Subsistema Integrado|Data de emiss|Órg[aã]o respons/i)[0];
+    const m = seg.match(/(\d{8})\s*[-–]\s*([\s\S]+?)(?=(?:\s\d{8}\s*[-–])|$)/);
+    if(m){
+      let d = m[2].trim()
+        .replace(/-{3,}.*$/,'')
+        .replace(/Digitalizado.*$/i,'')
+        .replace(/\s{2,}/g,' ')
+        .replace(/[-–\s]+$/,'')
+        .trim();
+      if(d) out.push({c:m[1], d});
+    }
   }
   return out;
 }
