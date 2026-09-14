@@ -101,13 +101,13 @@
     background:rgba(255,255,255,.12);color:#fff;font-weight:600}
   .chip.ok{background:rgba(47,143,78,.9)}
   .chip.fora{background:rgba(180,120,20,.9)}
-  .cadeado{position:absolute;top:8px;left:8px;z-index:4;background:rgba(0,0,0,.45);color:#ffd772;border-radius:8px;
+  .cadeado{position:absolute;bottom:8px;left:8px;z-index:6;background:rgba(0,0,0,.5);color:#ffd772;border-radius:8px;
     width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:15px}
 
   /* ---------- MALA (maleta de couro preta) ---------- */
   .mala{background:none;border:none;padding:0;width:100%;text-align:left}
   .mala .corpo{
-    position:relative;border-radius:16px;padding:50px 16px 16px;min-height:196px;color:#fff;overflow:hidden;
+    position:relative;border-radius:16px;padding:16px;min-height:150px;color:#fff;overflow:visible;
     border:1px solid #050506;
     background:
       radial-gradient(120% 80% at 30% 8%, #43474e 0%, #23262c 46%, #101215 100%);
@@ -151,7 +151,7 @@
 
   /* ---------- GUIA (cartão Dedica Saúde) ---------- */
   .guia{background:none;border:none;padding:0;width:100%;text-align:left}
-  .guia .corpo{position:relative;min-height:186px;border-radius:16px;padding:16px 15px 14px;overflow:hidden;
+  .guia .corpo{position:relative;min-height:186px;border-radius:16px;padding:30px 15px 14px;overflow:hidden;
     display:flex;flex-direction:column;align-items:center;text-align:center;
     background:linear-gradient(160deg,#ffffff 0%,#eef3fb 100%);
     box-shadow:0 0 0 3px #1b3f86, inset 0 0 0 2px #a9c6f2, 0 12px 26px rgba(0,0,0,.32)}
@@ -165,13 +165,27 @@
     line-height:1.2;margin-top:12px;text-transform:capitalize;max-width:100%}
   .guia .meta{position:relative;z-index:2;color:#5c6b88;font-size:11px;margin-top:7px;letter-spacing:.2px}
 
-  /* ---------- CARIMBO overlay ---------- */
-  .carimbo{position:absolute;z-index:5;top:52%;left:50%;transform:translate(-50%,-50%) rotate(-11deg);
-    border:3px double currentColor;border-radius:8px;padding:5px 12px;font-family:Archivo;font-weight:800;
-    font-size:15px;letter-spacing:1px;text-transform:uppercase;opacity:.86;pointer-events:none;
-    box-shadow:0 0 0 2px rgba(255,255,255,.15) inset;background:rgba(255,255,255,.06);white-space:nowrap}
-  .carimbo small{display:block;font-family:Inter;font-weight:600;font-size:9px;letter-spacing:.3px;text-align:center;
-    opacity:.9;text-transform:none;margin-top:2px}
+  /* ---------- PLAQUINHA DE NOME (por cima, desenho livre) ---------- */
+  .rotulo-topo{position:relative;z-index:3;margin:0 2px 10px;background:linear-gradient(#30353e,#22262d);
+    border:1px solid #454b56;border-radius:11px;padding:8px 44px 8px 12px;box-shadow:0 5px 12px rgba(0,0,0,.35)}
+  .rotulo-topo .rot{font-size:10.5px;color:#9aa3b0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px}
+  .rotulo-topo .nome-edit{font-family:Archivo;font-weight:700;font-size:16px;color:#f2f5f9;line-height:1.15;text-transform:capitalize}
+  .contador{display:flex;align-items:center;gap:8px;margin:10px 4px 0}
+
+  /* ---------- ETIQUETA (carimbo pendurado) ---------- */
+  .etiqueta{position:absolute;top:2px;right:12px;z-index:8;pointer-events:none;transform:rotate(5deg);transform-origin:top center}
+  .item.mala .etiqueta,.item.pasta .etiqueta{right:auto;left:12px;transform:rotate(-5deg)}
+  .etiqueta .laco{width:18px;height:18px;margin:0 auto -9px;border:3px solid #b7a06b;border-bottom-color:transparent;
+    border-right-color:transparent;border-radius:50%;transform:rotate(45deg)}
+  .etiqueta .tag{position:relative;background:linear-gradient(#f7f0dc,#eadfc0);border:4px solid var(--cor);
+    border-radius:12px;padding:11px 15px 9px;box-shadow:0 9px 16px rgba(0,0,0,.42);min-width:92px;text-align:center}
+  .etiqueta .furo{position:absolute;top:7px;left:50%;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;
+    background:#fff;border:2px solid var(--cor);box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+  .etiqueta .txt{display:block;margin-top:11px;font-family:Archivo;font-weight:800;text-transform:uppercase;
+    letter-spacing:1px;color:var(--cor);font-size:13.5px;line-height:1;white-space:nowrap}
+  .etiqueta small{display:block;margin-top:4px;font-family:Inter;font-weight:600;font-size:8.5px;color:var(--cor);
+    opacity:.8;letter-spacing:.3px;text-transform:none}
+  .item.guia .acoes-btn{left:8px;right:auto}
 
   /* ---------- MODAL ---------- */
   .fundo-modal{position:fixed;inset:0;z-index:50;background:rgba(8,10,14,.6);backdrop-filter:blur(3px);
@@ -378,10 +392,16 @@ function chipContagem(n){
   const dentro = n>=MIN_GUIAS && n<=MAX_GUIAS;
   return `<span class="chip ${dentro?'ok':'fora'}">${n}/${MAX_GUIAS} guias</span>`;
 }
-function carimboHTML(cod){
+function carimboHTML(cod, quando){
   if(!cod || !CARIMBOS[cod]) return '';
   const c=CARIMBOS[cod];
-  return `<span class="carimbo" style="color:${c.cor}">${esc(c.rotulo)}</span>`;
+  const data = quando? new Date(quando).toLocaleDateString('pt-BR') : '';
+  return `<span class="etiqueta" style="--cor:${c.cor}">
+    <span class="laco"></span>
+    <span class="tag"><span class="furo"></span>
+      <span class="txt">${esc(c.rotulo.toUpperCase())}</span>${data?`<small>${esc(data)}</small>`:''}
+    </span>
+  </span>`;
 }
 function botaoAcoes(tipo,id){
   return `<button class="acoes-btn" onclick="abrirMenu(event,'${tipo}','${id}')">⋯</button>`;
@@ -449,40 +469,40 @@ function malaCard(m){
   const n = guiasDaMala(m.id).length;
   const travada = !!m.carimbo;
   return `<div class="item mala ${travada?'travado':''}">
+    ${botaoAcoes('mala',m.id)}
+    <div class="rotulo-topo" onclick="event.stopPropagation()">
+      <div class="rot">Mala</div>
+      <div class="nome-edit" contenteditable="${travada?'false':'true'}"
+           onblur="salvarNome('mala','${m.id}',this)"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(m.nome)}</div>
+    </div>
     <div class="corpo" onclick="abrirMala('${m.id}')" style="cursor:pointer">
       <span class="alca"></span>
       <span class="canto tl"></span><span class="canto tr"></span><span class="canto bl"></span><span class="canto br"></span>
       <span class="latch e"><i></i><i></i><i></i></span>
       <span class="latch d"><i></i><i></i><i></i></span>
-      ${botaoAcoes('mala',m.id)}
       ${m.bloqueada?`<span class="cadeado" title="Trancada">🔒</span>`:''}
-      ${carimboHTML(m.carimbo)}
-      <div class="placa" onclick="event.stopPropagation()">
-        <div class="rot">Mala</div>
-        <div class="nome-edit" contenteditable="${travada?'false':'true'}"
-             onblur="salvarNome('mala','${m.id}',this)"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(m.nome)}</div>
-      </div>
-      <div class="rodape">${chipContagem(n)}</div>
+      ${carimboHTML(m.carimbo, m.carimbo_em)}
     </div>
+    <div class="contador">${chipContagem(n)}</div>
   </div>`;
 }
 function pastaCard(p){
   const n = guiasDaPasta(p.id).length;
   const travada = !!estado.malaAtual.carimbo;
   return `<div class="item pasta ${travada?'travado':''}">
+    ${travada?'':botaoAcoes('pasta',p.id)}
+    <div class="rotulo-topo" onclick="event.stopPropagation()">
+      <div class="rot">Pasta</div>
+      <div class="nome-edit" contenteditable="${travada?'false':'true'}"
+           onblur="salvarNome('pasta','${p.id}',this)"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(p.nome)}</div>
+    </div>
     <div class="corpo" onclick="abrirPasta('${p.id}')" style="cursor:pointer">
       ${SVG_PASTA}
-      ${travada?'':botaoAcoes('pasta',p.id)}
-      ${carimboHTML(p.carimbo)}
-      <div class="placa2" onclick="event.stopPropagation()">
-        <div class="rot">Pasta</div>
-        <div class="nome-edit" contenteditable="${travada?'false':'true'}"
-             onblur="salvarNome('pasta','${p.id}',this)"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(p.nome)}</div>
-      </div>
-      <div class="rodape"><span class="chip">${n} guia${n===1?'':'s'}</span></div>
+      ${carimboHTML(p.carimbo, p.carimbo_em)}
     </div>
+    <div class="contador"><span class="chip">${n} guia${n===1?'':'s'}</span></div>
   </div>`;
 }
 function guiaCard(g){
@@ -492,7 +512,7 @@ function guiaCard(g){
     <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
       <div class="guia-logo" role="img" aria-label="Dedica Saúde"></div>
       ${travada?'':botaoAcoes('guia',g.id)}
-      ${carimboHTML(g.carimbo)}
+      ${carimboHTML(g.carimbo, g.carimbo_em)}
       <div class="nome-edit" contenteditable="${travada?'false':'true'}"
            onclick="event.stopPropagation()"
            onblur="salvarNome('guia','${g.id}',this)"
