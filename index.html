@@ -101,7 +101,7 @@
     background:rgba(255,255,255,.12);color:#fff;font-weight:600}
   .chip.ok{background:rgba(47,143,78,.9)}
   .chip.fora{background:rgba(180,120,20,.9)}
-  .cadeado{position:absolute;bottom:8px;left:8px;z-index:6;background:rgba(0,0,0,.5);color:#ffd772;border-radius:8px;
+  .cadeado{position:absolute;top:8px;left:8px;z-index:6;background:rgba(0,0,0,.5);color:#ffd772;border-radius:8px;
     width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:15px}
 
   /* ---------- MALA (maleta de couro preta) ---------- */
@@ -151,7 +151,7 @@
 
   /* ---------- GUIA (cartão Dedica Saúde) ---------- */
   .guia{background:none;border:none;padding:0;width:100%;text-align:left}
-  .guia .corpo{position:relative;min-height:186px;border-radius:16px;padding:30px 15px 14px;overflow:hidden;
+  .guia .corpo{position:relative;min-height:186px;border-radius:16px;padding:18px 15px 16px;overflow:hidden;
     display:flex;flex-direction:column;align-items:center;text-align:center;
     background:linear-gradient(160deg,#ffffff 0%,#eef3fb 100%);
     box-shadow:0 0 0 3px #1b3f86, inset 0 0 0 2px #a9c6f2, 0 12px 26px rgba(0,0,0,.32)}
@@ -172,20 +172,15 @@
   .rotulo-topo .nome-edit{font-family:Archivo;font-weight:700;font-size:16px;color:#f2f5f9;line-height:1.15;text-transform:capitalize}
   .contador{display:flex;align-items:center;gap:8px;margin:10px 4px 0}
 
-  /* ---------- ETIQUETA (carimbo pendurado) ---------- */
-  .etiqueta{position:absolute;top:2px;right:12px;z-index:8;pointer-events:none;transform:rotate(5deg);transform-origin:top center}
-  .item.mala .etiqueta,.item.pasta .etiqueta{right:auto;left:12px;transform:rotate(-5deg)}
-  .etiqueta .laco{width:18px;height:18px;margin:0 auto -9px;border:3px solid #b7a06b;border-bottom-color:transparent;
-    border-right-color:transparent;border-radius:50%;transform:rotate(45deg)}
-  .etiqueta .tag{position:relative;background:linear-gradient(#f7f0dc,#eadfc0);border:4px solid var(--cor);
-    border-radius:12px;padding:11px 15px 9px;box-shadow:0 9px 16px rgba(0,0,0,.42);min-width:92px;text-align:center}
-  .etiqueta .furo{position:absolute;top:7px;left:50%;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;
-    background:#fff;border:2px solid var(--cor);box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
-  .etiqueta .txt{display:block;margin-top:11px;font-family:Archivo;font-weight:800;text-transform:uppercase;
-    letter-spacing:1px;color:var(--cor);font-size:13.5px;line-height:1;white-space:nowrap}
-  .etiqueta small{display:block;margin-top:4px;font-family:Inter;font-weight:600;font-size:8.5px;color:var(--cor);
-    opacity:.8;letter-spacing:.3px;text-transform:none}
-  .item.guia .acoes-btn{left:8px;right:auto}
+  /* ---------- CARIMBOS (pílula, acumulam lado a lado) ---------- */
+  .area-carimbo{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin:12px 4px 0}
+  .guia .area-carimbo{margin-top:12px}
+  .carimbo{display:inline-flex;align-items:center;justify-content:center;border:3px solid var(--cor);color:var(--cor);
+    background:#f6efe0;border-radius:12px;font-family:Archivo;font-weight:800;font-style:italic;text-transform:uppercase;
+    letter-spacing:1px;font-size:13.5px;line-height:1;padding:7px 15px;box-shadow:0 3px 7px rgba(0,0,0,.22);
+    white-space:nowrap;cursor:default}
+  .item:not(.travado) .carimbo{cursor:pointer}
+  .item:not(.travado) .carimbo:hover{filter:brightness(.97)}
 
   /* ---------- MODAL ---------- */
   .fundo-modal{position:fixed;inset:0;z-index:50;background:rgba(8,10,14,.6);backdrop-filter:blur(3px);
@@ -392,16 +387,14 @@ function chipContagem(n){
   const dentro = n>=MIN_GUIAS && n<=MAX_GUIAS;
   return `<span class="chip ${dentro?'ok':'fora'}">${n}/${MAX_GUIAS} guias</span>`;
 }
-function carimboHTML(cod, quando){
-  if(!cod || !CARIMBOS[cod]) return '';
-  const c=CARIMBOS[cod];
-  const data = quando? new Date(quando).toLocaleDateString('pt-BR') : '';
-  return `<span class="etiqueta" style="--cor:${c.cor}">
-    <span class="laco"></span>
-    <span class="tag"><span class="furo"></span>
-      <span class="txt">${esc(c.rotulo.toUpperCase())}</span>${data?`<small>${esc(data)}</small>`:''}
-    </span>
-  </span>`;
+function carimbosHTML(lista, tipo, id, travada){
+  if(!Array.isArray(lista) || !lista.length) return '';
+  const pilulas = lista.map((c,i)=>{
+    const d=CARIMBOS[c && c.t]; if(!d) return '';
+    const rem = travada ? '' : `onclick="removerCarimbo(event,'${tipo}','${id}',${i})" title="Clique para remover"`;
+    return `<span class="carimbo" style="--cor:${d.cor}" ${rem}>${esc(d.rotulo.toUpperCase())}</span>`;
+  }).join('');
+  return `<div class="area-carimbo">${pilulas}</div>`;
 }
 function botaoAcoes(tipo,id){
   return `<button class="acoes-btn" onclick="abrirMenu(event,'${tipo}','${id}')">⋯</button>`;
@@ -421,12 +414,12 @@ function renderConteudo(){
     $('titulo-view').textContent='Pastas da mala';
     $('btn-novo').textContent='Nova pasta';
     $('btn-novo').onclick=novaPasta;
-    $('btn-novo').style.display = m.carimbo ? 'none':'';
+    $('btn-novo').style.display = m.bloqueada ? 'none':'';
     const ps=pastasDaMala(m.id);
     let aviso='';
-    if(m.carimbo){
-      aviso=`<div class="vazio" style="border-style:solid;border-color:${CARIMBOS[m.carimbo].cor}55;color:var(--tinta)">
-        Esta mala está carimbada como <b>${CARIMBOS[m.carimbo].rotulo}</b> e trancada. Para alterar o conteúdo,
+    if(m.bloqueada){
+      aviso=`<div class="vazio" style="border-style:solid;color:var(--tinta)">
+        Esta mala está trancada. Para alterar o conteúdo,
         <button class="link" onclick="destrancarMala('${m.id}')">destranque com a senha</button>.</div>`;
     }
     grade.innerHTML = aviso + (ps.length? ps.map(p=>pastaCard(p)).join('') :
@@ -467,12 +460,12 @@ const SVG_CADUCEU = `<svg class="caduceu" viewBox="0 0 60 92" width="34" height=
 /* ----- cards ----- */
 function malaCard(m){
   const n = guiasDaMala(m.id).length;
-  const travada = !!m.carimbo;
-  return `<div class="item mala ${travada?'travado':''}">
+  const trav = !!m.bloqueada;
+  return `<div class="item mala ${trav?'travado':''}">
     ${botaoAcoes('mala',m.id)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Mala</div>
-      <div class="nome-edit" contenteditable="${travada?'false':'true'}"
+      <div class="nome-edit" contenteditable="${trav?'false':'true'}"
            onblur="salvarNome('mala','${m.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(m.nome)}</div>
     </div>
@@ -482,42 +475,42 @@ function malaCard(m){
       <span class="latch e"><i></i><i></i><i></i></span>
       <span class="latch d"><i></i><i></i><i></i></span>
       ${m.bloqueada?`<span class="cadeado" title="Trancada">🔒</span>`:''}
-      ${carimboHTML(m.carimbo, m.carimbo_em)}
     </div>
     <div class="contador">${chipContagem(n)}</div>
+    ${carimbosHTML(m.carimbos, 'mala', m.id, trav)}
   </div>`;
 }
 function pastaCard(p){
   const n = guiasDaPasta(p.id).length;
-  const travada = !!estado.malaAtual.carimbo;
-  return `<div class="item pasta ${travada?'travado':''}">
-    ${travada?'':botaoAcoes('pasta',p.id)}
+  const trav = !!estado.malaAtual.bloqueada;
+  return `<div class="item pasta ${trav?'travado':''}">
+    ${trav?'':botaoAcoes('pasta',p.id)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Pasta</div>
-      <div class="nome-edit" contenteditable="${travada?'false':'true'}"
+      <div class="nome-edit" contenteditable="${trav?'false':'true'}"
            onblur="salvarNome('pasta','${p.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(p.nome)}</div>
     </div>
     <div class="corpo" onclick="abrirPasta('${p.id}')" style="cursor:pointer">
       ${SVG_PASTA}
-      ${carimboHTML(p.carimbo, p.carimbo_em)}
     </div>
     <div class="contador"><span class="chip">${n} guia${n===1?'':'s'}</span></div>
+    ${carimbosHTML(p.carimbos, 'pasta', p.id, trav)}
   </div>`;
 }
 function guiaCard(g){
-  const travada = !!estado.malaAtual.carimbo;
+  const trav = !!estado.malaAtual.bloqueada;
   const data = g.created_at? new Date(g.created_at).toLocaleDateString('pt-BR'):'';
-  return `<div class="item guia ${travada?'travado':''}">
+  return `<div class="item guia ${trav?'travado':''}">
     <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
       <div class="guia-logo" role="img" aria-label="Dedica Saúde"></div>
-      ${travada?'':botaoAcoes('guia',g.id)}
-      ${carimboHTML(g.carimbo, g.carimbo_em)}
-      <div class="nome-edit" contenteditable="${travada?'false':'true'}"
+      ${trav?'':botaoAcoes('guia',g.id)}
+      <div class="nome-edit" contenteditable="${trav?'false':'true'}"
            onclick="event.stopPropagation()"
            onblur="salvarNome('guia','${g.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(g.nome)}</div>
       <div class="meta">Guia SIASS · ${data}${g.meta&&g.meta.codigo?' · '+esc(g.meta.codigo):''}</div>
+      ${carimbosHTML(g.carimbos, 'guia', g.id, trav)}
     </div>
   </div>`;
 }
@@ -676,75 +669,86 @@ function abrirMenu(ev,tipo,id){
   ev.stopPropagation(); fecharMenus();
   const alvo = ev.currentTarget.closest('.item');
   const menu = document.createElement('div'); menu.className='menu';
-  const podeCarimbarMala = tipo==='mala';
-  let itens = `<button onclick="acaoCarimbar('${tipo}','${id}')">Carimbar</button>`;
-  itens += `<button onclick="acaoRenomear('${tipo}','${id}')">Renomear</button>`;
-  itens += `<div class="div"></div><button class="del" onclick="acaoExcluir('${tipo}','${id}')">Excluir</button>`;
+  let itens='';
+  if(tipo==='mala'){
+    const mala=estado.malas.find(m=>m.id===id);
+    if(mala && mala.bloqueada){
+      itens = `<button onclick="destrancarMala('${id}')">Destrancar</button>`;
+    }else{
+      itens  = `<button onclick="acaoCarimbar('mala','${id}')">Carimbar</button>`;
+      itens += `<button onclick="acaoRenomear('mala','${id}')">Renomear</button>`;
+      itens += `<button onclick="trancarMala('${id}')">Trancar (20 a 50, com senha)</button>`;
+      itens += `<div class="div"></div><button class="del" onclick="acaoExcluir('mala','${id}')">Excluir</button>`;
+    }
+  }else{
+    itens  = `<button onclick="acaoCarimbar('${tipo}','${id}')">Carimbar</button>`;
+    itens += `<button onclick="acaoRenomear('${tipo}','${id}')">Renomear</button>`;
+    itens += `<div class="div"></div><button class="del" onclick="acaoExcluir('${tipo}','${id}')">Excluir</button>`;
+  }
   menu.innerHTML=itens; alvo.appendChild(menu);
 }
 
-/* ----- carimbar ----- */
+/* ----- carimbar (acumula, um não cobre o outro) ----- */
+function refs(tipo){
+  return { tabela: tipo==='mala'?'malas':tipo==='pasta'?'mala_pastas':'mala_guias',
+           lista:  tipo==='mala'?estado.malas:tipo==='pasta'?estado.pastas:estado.guias };
+}
 async function acaoCarimbar(tipo,id){
   fecharMenus();
-  if(tipo==='mala'){ return carimbarMala(id); }
-  const tabela = tipo==='pasta'?'mala_pastas':'mala_guias';
-  const lista  = tipo==='pasta'?estado.pastas:estado.guias;
-  const obj = lista.find(x=>x.id===id);
-  const cod = await escolherCarimbo(obj.carimbo);
-  if(cod===undefined) return;
-  const patch = { carimbo: cod, carimbo_em: cod? new Date().toISOString():null };
-  const {error} = await sb.from(tabela).update(patch).eq('id',id);
+  const {tabela,lista}=refs(tipo);
+  const obj=lista.find(x=>x.id===id); if(!obj) return;
+  if(tipo==='mala' && obj.bloqueada) return toast('Mala trancada. Destranque para carimbar.',true);
+  const cod = await escolherCarimbo();
+  if(!cod) return;
+  const novos = [...(Array.isArray(obj.carimbos)?obj.carimbos:[]), {t:cod, em:new Date().toISOString()}];
+  const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',id);
   if(error) return toast('Erro ao carimbar: '+error.message,true);
-  Object.assign(obj,patch); render();
+  obj.carimbos=novos; render();
 }
-async function carimbarMala(id){
-  const n = guiasDaMala(id).length;
-  if(n<MIN_GUIAS || n>MAX_GUIAS){
-    return toast(`A mala precisa ter de ${MIN_GUIAS} a ${MAX_GUIAS} guias para ser carimbada. Ela tem ${n}.`,true);
-  }
-  const mala = estado.malas.find(m=>m.id===id);
-  const cod = await escolherCarimbo(mala.carimbo, true);
-  if(cod===undefined) return;
-  if(!cod){ // remover carimbo de mala não trancada
-    const {error}=await sb.from('malas').update({carimbo:null,carimbo_em:null,bloqueada:false,senha_hash:null}).eq('id',id);
-    if(error) return toast('Erro: '+error.message,true);
-    Object.assign(mala,{carimbo:null,carimbo_em:null,bloqueada:false,senha_hash:null});
-    estado.destrancadas.delete(id); render(); return;
-  }
-  const senha = await pedirTexto('Trancar a mala',
-    `Crie uma senha para trancar esta mala. Ela ficará carimbada como "${CARIMBOS[cod].rotulo}" e só abrirá com esta senha.`,
-    '', 'Senha da mala', 'password');
+async function removerCarimbo(ev,tipo,id,idx){
+  ev.stopPropagation();
+  const {tabela,lista}=refs(tipo);
+  const obj=lista.find(x=>x.id===id); if(!obj) return;
+  if(tipo==='mala' && obj.bloqueada) return;
+  const ok=await pedirConfirma('Remover carimbo','Tirar este carimbo do item?'); if(!ok) return;
+  const novos=(obj.carimbos||[]).filter((_,i)=>i!==idx);
+  const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',id);
+  if(error) return toast('Erro: '+error.message,true);
+  obj.carimbos=novos; render();
+}
+
+/* ----- trancar/destrancar mala (20 a 50 + senha) ----- */
+async function trancarMala(id){
+  fecharMenus();
+  const n=guiasDaMala(id).length;
+  if(n<MIN_GUIAS || n>MAX_GUIAS) return toast(`A mala precisa ter de ${MIN_GUIAS} a ${MAX_GUIAS} guias para trancar. Tem ${n}.`,true);
+  const mala=estado.malas.find(m=>m.id===id);
+  const senha=await pedirTexto('Trancar a mala','Crie uma senha. A mala fica trancada e só abre com ela.','', 'Senha da mala','password');
   if(senha===null) return;
   if(senha.length<3) return toast('Use uma senha com pelo menos 3 caracteres.',true);
-  const hash = await sha256(senha);
-  const patch = {carimbo:cod, carimbo_em:new Date().toISOString(), bloqueada:true, senha_hash:hash};
-  const {error} = await sb.from('malas').update(patch).eq('id',id);
-  if(error){
-    if(/20 a 50/.test(error.message)) return toast(error.message,true);
-    return toast('Erro ao carimbar: '+error.message,true);
-  }
-  Object.assign(mala,patch); estado.destrancadas.delete(id); render();
+  const hash=await sha256(senha);
+  const {error}=await sb.from('malas').update({bloqueada:true, senha_hash:hash}).eq('id',id);
+  if(error) return toast('Erro ao trancar: '+error.message,true);
+  Object.assign(mala,{bloqueada:true, senha_hash:hash}); estado.destrancadas.delete(id); render();
 }
 async function pedirSenhaAbrir(mala){
-  const s = await pedirTexto('Mala trancada',
-    `A mala "${mala.nome}" está carimbada como "${CARIMBOS[mala.carimbo].rotulo}". Digite a senha para abrir.`,
-    '', 'Senha', 'password');
+  const s=await pedirTexto('Mala trancada',`A mala "${mala.nome}" está trancada. Digite a senha para abrir.`,'', 'Senha','password');
   if(s===null) return;
-  const hash = await sha256(s);
+  const hash=await sha256(s);
   if(hash!==mala.senha_hash) return toast('Senha incorreta.',true);
   estado.destrancadas.add(mala.id);
-  estado.malaAtual = mala; estado.view='mala'; estado.pastaAtual=null; render();
+  estado.malaAtual=mala; estado.view='mala'; estado.pastaAtual=null; render();
 }
 async function destrancarMala(id){
-  const mala = estado.malas.find(m=>m.id===id);
-  const s = await pedirTexto('Destrancar mala','Digite a senha para remover o carimbo e liberar a edição.','', 'Senha','password');
+  fecharMenus();
+  const mala=estado.malas.find(m=>m.id===id);
+  const s=await pedirTexto('Destrancar mala','Digite a senha para liberar a edição.','', 'Senha','password');
   if(s===null) return;
-  const hash = await sha256(s);
+  const hash=await sha256(s);
   if(hash!==mala.senha_hash) return toast('Senha incorreta.',true);
-  const {error}=await sb.from('malas').update({carimbo:null,carimbo_em:null,bloqueada:false,senha_hash:null}).eq('id',id);
+  const {error}=await sb.from('malas').update({bloqueada:false, senha_hash:null}).eq('id',id);
   if(error) return toast('Erro: '+error.message,true);
-  Object.assign(mala,{carimbo:null,carimbo_em:null,bloqueada:false,senha_hash:null});
-  estado.destrancadas.delete(id); render();
+  Object.assign(mala,{bloqueada:false, senha_hash:null}); estado.destrancadas.delete(id); render();
 }
 
 /* ----- renomear (via modal) ----- */
@@ -809,17 +813,16 @@ function pedirConfirma(titulo,texto){
     $('mc-nao').onclick=()=>{fecharModal();res(false);};
   });
 }
-function escolherCarimbo(atual, ehMala){
+function escolherCarimbo(){
   return new Promise(res=>{
     const ops=Object.entries(CARIMBOS).map(([k,v])=>
       `<button class="op-carimbo" style="border-color:${v.cor};background:${v.cor}22;color:${v.cor}"
         onclick="window.__escolha('${k}')">${esc(v.rotulo)}</button>`).join('');
     abrirModal(`<div class="modal">
       <h3>Carimbar</h3>
-      <p>${ehMala?'Escolha o carimbo. A mala será trancada com senha.':'Escolha o carimbo para este item.'}</p>
+      <p>Escolha o carimbo. Ele soma aos que já estão no item.</p>
       <div class="opcoes-carimbo">${ops}</div>
       <div class="linha">
-        ${atual?`<button class="btn secundario" onclick="window.__escolha('')">Remover carimbo</button>`:''}
         <button class="btn secundario" onclick="window.__escolha(undefined)">Cancelar</button>
       </div></div>`);
     window.__escolha=(v)=>{ fecharModal(); delete window.__escolha; res(v); };
@@ -845,8 +848,8 @@ function toast(msg,erro){
 }
 
 /* expor para onclick inline */
-Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,abrirMenu,acaoCarimbar,acaoRenomear,acaoExcluir,
-  verGuia,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal});
+Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,abrirMenu,acaoCarimbar,removerCarimbo,
+  trancarMala,acaoRenomear,acaoExcluir,verGuia,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal});
 </script>
 </body>
 </html>
