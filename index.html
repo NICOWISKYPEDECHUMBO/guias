@@ -181,6 +181,13 @@
     white-space:nowrap;cursor:default}
   .item:not(.travado) .carimbo{cursor:pointer}
   .item:not(.travado) .carimbo:hover{filter:brightness(.97)}
+  /* broche 3D com número da ordem */
+  .broche{position:absolute;top:-10px;left:-10px;z-index:9;width:52px;height:52px;pointer-events:none;
+    filter:drop-shadow(0 4px 5px rgba(0,0,0,.45))}
+  .broche svg{width:100%;height:100%;display:block}
+  .item.guia[draggable="true"]{cursor:grab}
+  .item.guia.drop-antes{box-shadow:-4px 0 0 0 #4aa3ff}
+  .item.guia.drop-depois{box-shadow:4px 0 0 0 #4aa3ff}
 
   /* ---------- MODAL ---------- */
   .fundo-modal{position:fixed;inset:0;z-index:50;background:rgba(8,10,14,.6);backdrop-filter:blur(3px);
@@ -238,7 +245,7 @@
 </div>
 
 <div id="camada-modal"></div>
-<input id="file-guia" type="file" accept="application/pdf,image/*" class="oculto">
+<input id="file-guia" type="file" accept="application/pdf,image/*" multiple class="oculto">
 
 <script>
 /* ================= CONFIG ================= */
@@ -350,7 +357,8 @@ async function carregarTudo(){
   estado.malas = m.data||[]; estado.pastas = p.data||[]; estado.guias = g.data||[];
 }
 const pastasDaMala = id => estado.pastas.filter(p=>p.mala_id===id);
-const guiasDaPasta = id => estado.guias.filter(g=>g.pasta_id===id);
+const guiasDaPasta = id => estado.guias.filter(g=>g.pasta_id===id)
+  .sort((a,b)=>((a.ordem??1e9)-(b.ordem??1e9)) || ((a.created_at||'')<(b.created_at||'')?-1:1));
 const guiasDaMala  = id => estado.guias.filter(g=>g.mala_id===id);
 
 /* ================= NAVEGAÇÃO ================= */
@@ -429,11 +437,11 @@ function renderConteudo(){
     const p=estado.pastaAtual, m=estado.malaAtual;
     const travada = !!m.carimbo;
     $('titulo-view').textContent='Guias da pasta';
-    $('btn-novo').textContent='Adicionar guia';
+    $('btn-novo').textContent='Adicionar guias';
     $('btn-novo').onclick=adicionarGuia;
     $('btn-novo').style.display = travada ? 'none':'';
     const gs=guiasDaPasta(p.id);
-    grade.innerHTML = gs.length? gs.map(g=>guiaCard(g)).join('') :
+    grade.innerHTML = gs.length? gs.map((g,i)=>guiaCard(g,i+1)).join('') :
       `<div class="vazio">Nenhuma guia nesta pasta. Toque em “Adicionar guia” e envie o PDF ou a foto.</div>`;
   }
 }
@@ -498,10 +506,15 @@ function pastaCard(p){
     ${carimbosHTML(p.carimbos, 'pasta', p.id, trav)}
   </div>`;
 }
-function guiaCard(g){
+function guiaCard(g, numero){
   const trav = !!estado.malaAtual.bloqueada;
   const data = g.created_at? new Date(g.created_at).toLocaleDateString('pt-BR'):'';
-  return `<div class="item guia ${trav?'travado':''}">
+  const dnd = trav ? '' :
+    `draggable="true"
+     ondragstart="guiaDragStart(event,'${g.id}')" ondragover="guiaDragOver(event,'${g.id}')"
+     ondragleave="guiaDragLeave(event)" ondrop="guiaDrop(event,'${g.id}')" ondragend="guiaDragEnd(event)"`;
+  return `<div class="item guia ${trav?'travado':''}" data-id="${g.id}" ${dnd}>
+    ${brocheHTML(numero)}
     <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
       <div class="guia-logo" role="img" aria-label="Dedica Saúde"></div>
       ${trav?'':botaoAcoes('guia',g.id)}
@@ -513,6 +526,67 @@ function guiaCard(g){
       ${carimbosHTML(g.carimbos, 'guia', g.id, trav)}
     </div>
   </div>`;
+}
+function brocheHTML(n){
+  const fs = n>=100 ? 15 : (n>=10 ? 19 : 22);
+  return `<span class="broche" aria-label="Ordem ${n}"><svg viewBox="0 0 60 60">
+    <defs>
+      <radialGradient id="brOuro" cx="36%" cy="30%">
+        <stop offset="0" stop-color="#ffeaa6"/><stop offset="55%" stop-color="#e4b13a"/><stop offset="100%" stop-color="#a5761b"/>
+      </radialGradient>
+      <radialGradient id="brDisc" cx="38%" cy="32%">
+        <stop offset="0" stop-color="#2c4f9b"/><stop offset="100%" stop-color="#0b1d45"/>
+      </radialGradient>
+    </defs>
+    <circle cx="30" cy="30" r="27" fill="url(#brOuro)"/>
+    <circle cx="30" cy="30" r="27" fill="none" stroke="#7f5a13" stroke-width="1.4"/>
+    <circle cx="30" cy="30" r="21" fill="url(#brDisc)" stroke="#06122e" stroke-width="1.6"/>
+    <g opacity="0.30" stroke="#dfe7ff" stroke-linecap="round" fill="none">
+      <line x1="30" y1="15" x2="30" y2="46" stroke-width="3"/>
+      <circle cx="30" cy="14" r="2.6" fill="#dfe7ff" stroke="none"/>
+      <path d="M30 20 C40 23 20 28 30 32 C40 36 20 41 30 45" stroke-width="2.6"/>
+    </g>
+    <text x="30" y="31" text-anchor="middle" dominant-baseline="central"
+      font-family="Archivo, sans-serif" font-weight="800" font-size="${fs}" fill="#ffffff"
+      style="paint-order:stroke;stroke:#06122e;stroke-width:3px">${n}</text>
+    <ellipse cx="22" cy="17" rx="10" ry="6" fill="#ffffff" opacity="0.22"/>
+  </svg></span>`;
+}
+
+/* ----- arrastar para reordenar ----- */
+let _arrastando=null;
+function guiaDragStart(ev,id){ _arrastando=id; ev.dataTransfer.effectAllowed='move';
+  try{ ev.dataTransfer.setData('text/plain',id); }catch(_){}
+  ev.currentTarget.style.opacity='0.5'; }
+function guiaDragOver(ev,id){ if(!_arrastando) return; ev.preventDefault(); ev.dataTransfer.dropEffect='move';
+  const it=ev.currentTarget, r=it.getBoundingClientRect();
+  const antes=(ev.clientX-r.left)<r.width/2;
+  it.classList.toggle('drop-antes',antes); it.classList.toggle('drop-depois',!antes); }
+function guiaDragLeave(ev){ ev.currentTarget.classList.remove('drop-antes','drop-depois'); }
+function guiaDrop(ev,id){ ev.preventDefault();
+  const it=ev.currentTarget, r=it.getBoundingClientRect();
+  const antes=(ev.clientX-r.left)<r.width/2;
+  it.classList.remove('drop-antes','drop-depois');
+  if(_arrastando && _arrastando!==id) reordenarGuia(_arrastando,id,antes);
+  _arrastando=null; }
+function guiaDragEnd(ev){ ev.currentTarget.style.opacity='';
+  document.querySelectorAll('.drop-antes,.drop-depois').forEach(e=>e.classList.remove('drop-antes','drop-depois'));
+  _arrastando=null; }
+async function reordenarGuia(dragId,targetId,antes){
+  const pastaId=estado.pastaAtual.id;
+  let arr=guiasDaPasta(pastaId).filter(g=>g.id!==dragId);
+  let idx=arr.findIndex(g=>g.id===targetId); if(idx<0) return;
+  if(!antes) idx+=1;
+  const prev=arr[idx-1], next=arr[idx];
+  let novo;
+  if(prev&&next) novo=(prev.ordem+next.ordem)/2;
+  else if(next) novo=next.ordem-1;
+  else if(prev) novo=prev.ordem+1;
+  else novo=1;
+  const {error}=await sb.from('mala_guias').update({ordem:novo}).eq('id',dragId);
+  if(error) return toast('Não deu para reordenar: '+error.message,true);
+  const g=estado.guias.find(x=>x.id===dragId); if(g) g.ordem=novo;
+  render();
 }
 
 /* ================= NOME (editar inline) ================= */
@@ -546,32 +620,64 @@ async function novaPasta(){
 
 /* ================= ADICIONAR GUIA (upload + OCR) ================= */
 function adicionarGuia(){ $('file-guia').value=''; $('file-guia').click(); }
-$('file-guia').addEventListener('change', async e=>{
-  const file = e.target.files[0]; if(!file) return;
+
+function nomeDoArquivo(fn){ return (fn||'Guia').replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim() || 'Guia'; }
+
+async function salvarGuia(file, nome, meta){
+  const uid = estado.user.id;
+  const gid = crypto.randomUUID();
+  const ext = (file.name.split('.').pop()||'bin').toLowerCase();
+  const path = `${uid}/${estado.malaAtual.id}/${estado.pastaAtual.id}/${gid}/arquivo.${ext}`;
+  const irmas = estado.guias.filter(g=>g.pasta_id===estado.pastaAtual.id);
+  const ordem = irmas.reduce((m,g)=>Math.max(m, g.ordem||0), 0) + 1;
+  const up = await sb.storage.from(BUCKET).upload(path, file, {contentType:file.type, upsert:false});
+  if(up.error) throw up.error;
+  const {data,error} = await sb.from('mala_guias').insert({
+    id:gid, mala_id:estado.malaAtual.id, pasta_id:estado.pastaAtual.id,
+    nome: nome||'Guia', arquivo_path:path, meta: meta||{}, ordem
+  }).select().single();
+  if(error) throw error;
+  estado.guias.push(data);
+  return data;
+}
+
+async function adicionarUma(file){
   const fechar = modalCarregando('Lendo a guia…','Reconhecendo o nome do servidor no documento.');
   let resultado={nome:'',meta:{}};
   try{ resultado = await lerGuiaOCR(file, msg=>fechar.progresso(msg)); }
   catch(err){ console.warn(err); }
   fechar();
   const nome = await pedirTexto('Confirmar guia','Confira o nome lido (ajuste se precisar):',
-                 resultado.nome || '', 'Nome do servidor');
+                 resultado.nome || nomeDoArquivo(file.name), 'Nome do servidor');
   if(nome===null) return;
   const fechar2 = modalCarregando('Guardando…','Enviando o arquivo com segurança.');
-  try{
-    const uid = estado.user.id;
-    const gid = crypto.randomUUID();
-    const ext = (file.name.split('.').pop()||'bin').toLowerCase();
-    const path = `${uid}/${estado.malaAtual.id}/${estado.pastaAtual.id}/${gid}/arquivo.${ext}`;
-    const up = await sb.storage.from(BUCKET).upload(path, file, {contentType:file.type, upsert:false});
-    if(up.error) throw up.error;
-    const {data,error} = await sb.from('mala_guias').insert({
-      id:gid, mala_id:estado.malaAtual.id, pasta_id:estado.pastaAtual.id,
-      nome: nome||'Guia', arquivo_path:path, meta: resultado.meta||{}
-    }).select().single();
-    if(error) throw error;
-    estado.guias.push(data);
-    fechar2(); render();
-  }catch(err){ fechar2(); toast('Não deu para guardar: '+err.message,true); }
+  try{ await salvarGuia(file, nome, resultado.meta); fechar2(); render(); }
+  catch(err){ fechar2(); toast('Não deu para guardar: '+err.message,true); }
+}
+
+async function adicionarVarias(files){
+  const fechar = modalCarregando('Enviando guias…', `0 de ${files.length}`);
+  let ok=0, falhas=0;
+  for(let i=0;i<files.length;i++){
+    const file=files[i];
+    fechar.progresso(`${i} de ${files.length} — lendo ${file.name}`);
+    let r={nome:'',meta:{}};
+    try{ r = await lerGuiaOCR(file, msg=>fechar.progresso(`${i} de ${files.length} — ${msg}`)); }
+    catch(err){ console.warn('OCR', file.name, err); }
+    try{
+      await salvarGuia(file, r.nome || nomeDoArquivo(file.name), r.meta||{});
+      ok++;
+    }catch(err){ console.warn('salvar', file.name, err); falhas++; }
+    fechar.progresso(`${i+1} de ${files.length}`);
+  }
+  fechar(); render();
+  toast(`${ok} guia${ok===1?'':'s'} adicionada${ok===1?'':'s'}${falhas?` · ${falhas} com erro`:''}.`, falhas>0);
+}
+
+$('file-guia').addEventListener('change', async e=>{
+  const files = [...e.target.files]; if(!files.length) return;
+  if(files.length===1) return adicionarUma(files[0]);
+  await adicionarVarias(files);
 });
 
 /* ---- OCR ---- */
@@ -606,12 +712,15 @@ async function lerGuiaOCR(file, prog){
     return {nome: extrairNome(t)||'', meta: extrairMeta(t)};
   }
 }
+let _worker=null, _ocrProg=null;
 async function ocrImagem(fonte, prog){
-  const worker = await Tesseract.createWorker('por', 1, { logger:m=>{
-    if(m.status==='recognizing text' && prog) prog('Lendo… '+Math.round((m.progress||0)*100)+'%');
-  }});
-  const {data:{text}} = await worker.recognize(fonte);
-  await worker.terminate();
+  _ocrProg = prog;
+  if(!_worker){
+    _worker = await Tesseract.createWorker('por', 1, { logger:m=>{
+      if(m.status==='recognizing text' && _ocrProg) _ocrProg('Lendo… '+Math.round((m.progress||0)*100)+'%');
+    }});
+  }
+  const {data:{text}} = await _worker.recognize(fonte);
   return text||'';
 }
 function limpar(s){ return s.replace(/[ \t]+/g,' ').replace(/\r/g,''); }
@@ -849,7 +958,8 @@ function toast(msg,erro){
 
 /* expor para onclick inline */
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,abrirMenu,acaoCarimbar,removerCarimbo,
-  trancarMala,acaoRenomear,acaoExcluir,verGuia,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal});
+  trancarMala,acaoRenomear,acaoExcluir,verGuia,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
+  guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd});
 </script>
 </body>
 </html>
