@@ -74,6 +74,14 @@
   main{padding:22px 18px 60px;max-width:1180px;width:100%;margin:0 auto;flex:1}
   .barra-acao{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
   .barra-acao h2{margin:0;font-size:19px}
+  .barra-sel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 18px;padding:12px 14px;
+    background:#20242b;border:1px solid var(--linha);border-radius:12px}
+  .barra-sel .cont{font-weight:600;font-size:14px;margin-right:auto}
+  .checksel{position:absolute;top:8px;right:8px;z-index:9;width:26px;height:26px;border-radius:50%;
+    background:#20242b;border:2px solid #6b7280;color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:15px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .checksel.on{background:#3f7fe0;border-color:#3f7fe0}
+  .item.sel .corpo{outline:3px solid #3f7fe0;outline-offset:2px;border-radius:16px}
   .barra-acao .spacer{flex:1}
   .grade{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
   .vazio{color:var(--tinta2);border:1px dashed var(--linha);border-radius:14px;padding:40px 20px;text-align:center}
@@ -164,6 +172,13 @@
   .guia .nome-edit{position:relative;z-index:2;font-family:Archivo;font-weight:700;color:#16264a;font-size:16.5px;
     line-height:1.2;margin-top:12px;text-transform:capitalize;max-width:100%}
   .guia .meta{position:relative;z-index:2;color:#5c6b88;font-size:11px;margin-top:7px;letter-spacing:.2px}
+  .guia .exames{position:relative;z-index:2;width:100%;margin-top:10px;text-align:left;font-family:Inter;
+    font-size:11px;line-height:1.35;color:#1f3a5f;background:#f2f6fc;border:1px dashed #b6c8e6;border-radius:8px;
+    padding:7px 9px;max-height:104px;overflow:auto;white-space:pre-wrap;word-break:break-word;cursor:text}
+  .guia .exames:empty::before{content:attr(data-vazio);color:#9fb0c6}
+  .guia .exame-wrap{position:relative;z-index:2;width:100%;margin-top:8px;max-height:460px;overflow:auto;
+    border:1px solid #cdd8ea;border-radius:8px;background:#fff}
+  .guia .exame-img{display:block;width:100%;height:auto}
 
   /* ---------- PLAQUINHA DE NOME (por cima, desenho livre) ---------- */
   .rotulo-topo{position:relative;z-index:3;margin:0 2px 10px;background:linear-gradient(#30353e,#22262d);
@@ -238,14 +253,17 @@
     <div class="barra-acao">
       <h2 id="titulo-view">Minhas malas</h2>
       <div class="spacer"></div>
+      <button id="btn-sel" class="btn secundario">Selecionar</button>
       <button id="btn-novo" class="btn">Nova mala</button>
     </div>
+    <div id="barra-sel" class="barra-sel oculto"></div>
     <div id="grade" class="grade"></div>
   </main>
 </div>
 
 <div id="camada-modal"></div>
 <input id="file-guia" type="file" accept="application/pdf,image/*" multiple class="oculto">
+<input id="file-pasta" type="file" webkitdirectory multiple class="oculto">
 
 <script>
 /* ================= CONFIG ================= */
@@ -271,7 +289,8 @@ const estado = {
   malas:[], pastas:[], guias:[],
   view:'mesa',          // mesa | mala | pasta
   malaAtual:null, pastaAtual:null,
-  destrancadas:new Set()
+  destrancadas:new Set(),
+  modoSel:false, sel:new Set()
 };
 let logado = false;
 
@@ -352,7 +371,7 @@ async function carregarTudo(){
   const [m,p,g] = await Promise.all([
     sb.from('malas').select('*').order('created_at'),
     sb.from('mala_pastas').select('*').order('created_at'),
-    sb.from('mala_guias').select('*').order('created_at'),
+    sb.from('mala_guias').select('id,mala_id,pasta_id,nome,carimbos,ordem,meta,arquivo_path,created_at').order('created_at'),
   ]);
   estado.malas = m.data||[]; estado.pastas = p.data||[]; estado.guias = g.data||[];
 }
@@ -362,21 +381,89 @@ const guiasDaPasta = id => estado.guias.filter(g=>g.pasta_id===id)
 const guiasDaMala  = id => estado.guias.filter(g=>g.mala_id===id);
 
 /* ================= NAVEGAÇÃO ================= */
-function irMesa(){ estado.view='mesa'; estado.malaAtual=null; estado.pastaAtual=null; render(); }
+function limparSelecao(){ estado.modoSel=false; estado.sel.clear(); }
+function irMesa(){ limparSelecao(); estado.view='mesa'; estado.malaAtual=null; estado.pastaAtual=null; render(); }
 function abrirMala(id){
+  if(selAtivoPara('mala')) return toggleSel(id);
   const mala = estado.malas.find(m=>m.id===id); if(!mala) return;
   if(mala.bloqueada && !estado.destrancadas.has(id)){
     pedirSenhaAbrir(mala); return;
   }
+  limparSelecao();
   estado.malaAtual = mala; estado.view='mala'; estado.pastaAtual=null; render();
 }
 function abrirPasta(id){
+  if(selAtivoPara('pasta')) return toggleSel(id);
   const pasta = estado.pastas.find(p=>p.id===id); if(!pasta) return;
+  limparSelecao();
   estado.pastaAtual = pasta; estado.view='pasta'; render();
+  carregarImagensPasta(pasta.id);
+}
+
+/* ================= SELEÇÃO EM LOTE ================= */
+function tipoDoView(){ return estado.view==='mesa'?'mala':estado.view==='mala'?'pasta':'guia'; }
+function selAtivoPara(tipo){ return estado.modoSel && tipo===tipoDoView() && !malaTravadaNoView(); }
+function malaTravadaNoView(){
+  return (estado.view==='mala' || estado.view==='pasta') && estado.malaAtual && estado.malaAtual.bloqueada;
+}
+function itensDoView(){
+  if(estado.view==='mesa') return estado.malas;
+  if(estado.view==='mala') return pastasDaMala(estado.malaAtual.id);
+  return guiasDaPasta(estado.pastaAtual.id);
+}
+function selChk(tipo,id){
+  if(!selAtivoPara(tipo)) return '';
+  const on=estado.sel.has(id);
+  return `<span class="checksel ${on?'on':''}">${on?'✓':''}</span>`;
+}
+function toggleSel(id){ if(estado.sel.has(id)) estado.sel.delete(id); else estado.sel.add(id); render(); }
+function entrarSelecao(){ if(malaTravadaNoView()) return; estado.modoSel=true; estado.sel.clear(); render(); }
+function sairSelecao(){ estado.modoSel=false; estado.sel.clear(); render(); }
+function selecionarTodos(){ estado.sel=new Set(itensDoView().map(x=>x.id)); render(); }
+async function carimbarSelecionados(){
+  const tipo=tipoDoView();
+  const ids=[...estado.sel];
+  if(!ids.length) return toast('Marque pelo menos um item.',true);
+  const cod=await escolherCarimbo(); if(!cod) return;
+  const {tabela,lista}=refs(tipo);
+  const pesado = (tipo==='guia' && cod==='lancado');
+  const fechar = (pesado || ids.length>4) ? modalCarregando('Carimbando…',`0 de ${ids.length}`) : null;
+  let ok=0, pulados=0;
+  for(let i=0;i<ids.length;i++){
+    const obj=lista.find(x=>x.id===ids[i]);
+    if(!obj){ continue; }
+    if(tipo==='mala' && obj.bloqueada){ pulados++; if(fechar)fechar.progresso(`${i+1} de ${ids.length}`); continue; }
+    const novos=[...(Array.isArray(obj.carimbos)?obj.carimbos:[]), {t:cod, em:new Date().toISOString()}];
+    const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',obj.id);
+    if(!error){ obj.carimbos=novos; ok++; }
+    if(pesado && !error){
+      try{ await processarGuiaLancada(obj, msg=>fechar.progresso(`${i+1} de ${ids.length} — ${msg}`)); }
+      catch(err){ console.warn(err); }
+    }
+    if(fechar) fechar.progresso(`${i+1} de ${ids.length}`);
+  }
+  if(fechar) fechar();
+  sairSelecao();
+  toast(`${ok} carimbado(s)${pulados?` · ${pulados} mala(s) trancada(s) puladas`:''}.`);
+}
+function renderBarraSel(){
+  const bar=$('barra-sel'), btnSel=$('btn-sel');
+  const podeSel = itensDoView().length>0 && !malaTravadaNoView();
+  btnSel.style.display = (estado.modoSel || !podeSel) ? 'none' : '';
+  btnSel.onclick = entrarSelecao;
+  if(!estado.modoSel){ bar.classList.add('oculto'); bar.innerHTML=''; return; }
+  $('btn-novo').style.display='none';
+  const n=estado.sel.size, total=itensDoView().length;
+  bar.classList.remove('oculto');
+  bar.innerHTML=`
+    <span class="cont">${n} de ${total} selecionada${n===1?'':'s'}</span>
+    <button class="btn secundario" onclick="selecionarTodos()">Selecionar todos</button>
+    <button class="btn" onclick="carimbarSelecionados()">Carimbar${n?` (${n})`:''}</button>
+    <button class="btn secundario" onclick="sairSelecao()">Cancelar</button>`;
 }
 
 /* ================= RENDER ================= */
-function render(){ fecharMenus(); renderCrumbs(); renderConteudo(); }
+function render(){ fecharMenus(); renderCrumbs(); renderConteudo(); renderBarraSel(); }
 
 function renderCrumbs(){
   const c=$('crumbs'); let h=`<button class="c" onclick="irMesa()">Mesa</button>`;
@@ -414,6 +501,7 @@ function renderConteudo(){
     $('titulo-view').textContent='Minhas malas';
     $('btn-novo').textContent='Nova mala';
     $('btn-novo').onclick=novaMala;
+    $('btn-novo').style.display='';
     if(!estado.malas.length){ grade.innerHTML=`<div class="vazio">Nenhuma mala ainda. Crie a primeira para começar a guardar suas guias.</div>`; return; }
     grade.innerHTML = estado.malas.map(m=>malaCard(m)).join('');
   }
@@ -435,7 +523,7 @@ function renderConteudo(){
   }
   else if(estado.view==='pasta'){
     const p=estado.pastaAtual, m=estado.malaAtual;
-    const travada = !!m.carimbo;
+    const travada = !!m.bloqueada;
     $('titulo-view').textContent='Guias da pasta';
     $('btn-novo').textContent='Adicionar guias';
     $('btn-novo').onclick=adicionarGuia;
@@ -469,8 +557,9 @@ const SVG_CADUCEU = `<svg class="caduceu" viewBox="0 0 60 92" width="34" height=
 function malaCard(m){
   const n = guiasDaMala(m.id).length;
   const trav = !!m.bloqueada;
-  return `<div class="item mala ${trav?'travado':''}">
-    ${botaoAcoes('mala',m.id)}
+  const selMode = selAtivoPara('mala');
+  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''}">
+    ${selMode ? selChk('mala',m.id) : botaoAcoes('mala',m.id)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Mala</div>
       <div class="nome-edit" contenteditable="${trav?'false':'true'}"
@@ -491,8 +580,9 @@ function malaCard(m){
 function pastaCard(p){
   const n = guiasDaPasta(p.id).length;
   const trav = !!estado.malaAtual.bloqueada;
-  return `<div class="item pasta ${trav?'travado':''}">
-    ${trav?'':botaoAcoes('pasta',p.id)}
+  const selMode = selAtivoPara('pasta');
+  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''}">
+    ${selMode ? selChk('pasta',p.id) : (trav?'':botaoAcoes('pasta',p.id))}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Pasta</div>
       <div class="nome-edit" contenteditable="${trav?'false':'true'}"
@@ -508,21 +598,25 @@ function pastaCard(p){
 }
 function guiaCard(g, numero){
   const trav = !!estado.malaAtual.bloqueada;
-  const data = g.created_at? new Date(g.created_at).toLocaleDateString('pt-BR'):'';
-  const dnd = trav ? '' :
+  const selMode = selAtivoPara('guia');
+  const dnd = (trav || selMode) ? '' :
     `draggable="true"
      ondragstart="guiaDragStart(event,'${g.id}')" ondragover="guiaDragOver(event,'${g.id}')"
      ondragleave="guiaDragLeave(event)" ondrop="guiaDrop(event,'${g.id}')" ondragend="guiaDragEnd(event)"`;
-  return `<div class="item guia ${trav?'travado':''}" data-id="${g.id}" ${dnd}>
+  return `<div class="item guia ${trav?'travado':''} ${estado.sel.has(g.id)?'sel':''}" data-id="${g.id}" ${dnd}>
     ${brocheHTML(numero)}
     <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
       <div class="guia-logo" role="img" aria-label="Dedica Saúde"></div>
-      ${trav?'':botaoAcoes('guia',g.id)}
-      <div class="nome-edit" contenteditable="${trav?'false':'true'}"
-           onclick="event.stopPropagation()"
+      ${selMode ? selChk('guia',g.id) : (trav?'':botaoAcoes('guia',g.id))}
+      <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false"
+           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
            onblur="salvarNome('guia','${g.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(g.nome)}</div>
-      <div class="meta">Guia SIASS · ${data}${g.meta&&g.meta.codigo?' · '+esc(g.meta.codigo):''}</div>
+      <div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
+           data-vazio="Exames (aparecem ao carimbar Lançado)"
+           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+           onblur="salvarExames('${g.id}',this)">${esc((g.meta&&g.meta.exames)||'').replace(/\n/g,'<br>')}</div>
+      ${g.exame_img?`<div class="exame-wrap" onmousedown="event.stopPropagation()"><img class="exame-img" src="${g.exame_img}" alt="Recorte dos exames" draggable="false"></div>`:''}
       ${carimbosHTML(g.carimbos, 'guia', g.id, trav)}
     </div>
   </div>`;
@@ -601,6 +695,14 @@ async function salvarNome(tipo,id,elemento){
   if(error){ toast('Não deu para renomear: '+error.message,true); elemento.textContent=obj.nome; return; }
   obj.nome=novo; if(tipo!=='guia') renderCrumbs();
 }
+async function salvarExames(id, el){
+  const txt = (el.innerText||'').trim();
+  const g = estado.guias.find(x=>x.id===id); if(!g) return;
+  const meta = Object.assign({}, g.meta||{}, {exames:txt});
+  const {error} = await sb.from('mala_guias').update({meta}).eq('id',id);
+  if(error){ toast('Não deu para salvar os exames: '+error.message,true); return; }
+  g.meta = meta;
+}
 
 /* ================= CRIAR ================= */
 async function novaMala(){
@@ -619,7 +721,22 @@ async function novaPasta(){
 }
 
 /* ================= ADICIONAR GUIA (upload + OCR) ================= */
-function adicionarGuia(){ $('file-guia').value=''; $('file-guia').click(); }
+function adicionarGuia(){
+  abrirModal(`<div class="modal">
+    <h3>Adicionar guias</h3>
+    <p>Você pode escolher arquivos soltos ou uma pasta inteira do computador.</p>
+    <div class="linha" style="justify-content:stretch;gap:10px">
+      <button class="btn secundario" style="flex:1" onclick="fecharModal();escolherArquivos()">Escolher arquivos</button>
+      <button class="btn" style="flex:1" onclick="fecharModal();escolherPasta()">Pasta inteira do PC</button>
+    </div>
+    <div class="linha"><button class="link" onclick="fecharModal()">Cancelar</button></div>
+  </div>`);
+}
+function escolherArquivos(){ $('file-guia').value=''; $('file-guia').click(); }
+function escolherPasta(){ $('file-pasta').value=''; $('file-pasta').click(); }
+function ehGuiaArquivo(f){
+  return f.type==='application/pdf' || /^image\//.test(f.type) || /\.(pdf|png|jpe?g|webp)$/i.test(f.name);
+}
 
 function nomeDoArquivo(fn){ return (fn||'Guia').replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim() || 'Guia'; }
 
@@ -679,6 +796,11 @@ $('file-guia').addEventListener('change', async e=>{
   if(files.length===1) return adicionarUma(files[0]);
   await adicionarVarias(files);
 });
+$('file-pasta').addEventListener('change', async e=>{
+  const files = [...e.target.files].filter(ehGuiaArquivo);
+  if(!files.length){ toast('Nenhum PDF ou imagem encontrado nessa pasta.',true); return; }
+  await adicionarVarias(files);
+});
 
 /* ---- OCR ---- */
 let libsProntas=false;
@@ -690,6 +812,18 @@ async function garantirLibs(){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   libsProntas=true;
 }
+async function renderRegiao(page, y0, y1, scale){
+  scale = scale||2.2;
+  const vp = page.getViewport({scale});
+  const yA = Math.max(0, Math.floor(vp.height*y0));
+  const yB = Math.min(vp.height, Math.floor(vp.height*y1));
+  const cv = document.createElement('canvas');
+  cv.width = Math.floor(vp.width); cv.height = Math.max(1, yB-yA);
+  const ctx = cv.getContext('2d');
+  ctx.translate(0, -yA);
+  await page.render({canvasContext:ctx, viewport:vp}).promise;
+  return cv;
+}
 async function lerGuiaOCR(file, prog){
   await garantirLibs();
   if(file.type==='application/pdf'){
@@ -697,20 +831,72 @@ async function lerGuiaOCR(file, prog){
     const pdf = await pdfjsLib.getDocument({data:buf}).promise;
     const page = await pdf.getPage(1);
     const tc = await page.getTextContent();
-    let texto = tc.items.map(i=>i.str).join(' ');
-    if(texto.replace(/\s/g,'').length>60){
-      const nome=extrairNome(texto); if(nome) return {nome, meta:extrairMeta(texto)};
+    const txt = tc.items.map(i=>i.str).join(' ');
+    if(txt.replace(/\s/g,'').length>60){
+      const nome=extrairNome(txt); if(nome) return {nome, meta:{}};
     }
-    prog && prog('Documento escaneado, lendo por imagem…');
-    const vp = page.getViewport({scale:2.2});
-    const cv = document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
-    await page.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise;
-    const t = await ocrImagem(cv, prog);
-    return {nome: extrairNome(t)||'', meta: extrairMeta(t)};
+    const cvN = await renderRegiao(page, 0.26, 0.72);
+    return {nome: extrairNome(await ocrImagem(cvN, prog))||'', meta:{}};
   }else{
     const t = await ocrImagem(file, prog);
-    return {nome: extrairNome(t)||'', meta: extrairMeta(t)};
+    return {nome: extrairNome(t)||'', meta:{}};
   }
+}
+/* ---- lançar: lê exames de todas as páginas + recorta a faixa "Exames Requisitados" ---- */
+function carregarImg(src){ return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
+function montarBandas(cvs){
+  const W=720;
+  let H=0; const alturas=cvs.map(c=>{ const h=Math.round(c.height*(W/c.width)); H+=h+6; return h; });
+  const out=document.createElement('canvas'); out.width=W; out.height=Math.max(1,H);
+  const ctx=out.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,out.height);
+  let y=0; cvs.forEach((c,i)=>{ ctx.drawImage(c,0,y,W,alturas[i]); y+=alturas[i]+6; });
+  return out.toDataURL('image/jpeg', 0.62);
+}
+async function processarGuiaLancada(g, prog){
+  await garantirLibs();
+  const {data:blob, error} = await sb.storage.from(BUCKET).download(g.arquivo_path);
+  if(error || !blob) throw (error||new Error('não achei o arquivo'));
+  const ehPdf = /\.pdf$/i.test(g.arquivo_path) || blob.type==='application/pdf';
+  let exames=[]; const bandas=[];
+  if(ehPdf){
+    const buf = await blob.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    const total = pdf.numPages;
+    for(let p=1;p<=total;p++){
+      prog && prog(`página ${p} de ${total}…`);
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const txt = tc.items.map(i=>i.str).join(' ');
+      const cvBanda = await renderRegiao(page, 0.60, 0.97);
+      bandas.push(cvBanda);
+      if(txt.replace(/\s/g,'').length>60) exames.push(...extrairExames(txt));
+      else exames.push(...extrairExames(await ocrImagem(cvBanda, prog)));
+    }
+  }else{
+    const url = URL.createObjectURL(blob);
+    const img = await carregarImg(url); URL.revokeObjectURL(url);
+    const cv = document.createElement('canvas'); cv.width=img.width; cv.height=img.height;
+    cv.getContext('2d').drawImage(img,0,0);
+    bandas.push(cv);
+    exames.push(...extrairExames(await ocrImagem(cv, prog)));
+  }
+  const vistos=new Set(), lista=[];
+  for(const e of exames){ const k=e.c||e.d; if(!k||vistos.has(k)) continue; vistos.add(k); lista.push(e); }
+  const examesTxt = lista.map(e=> e.c? `${e.c} - ${e.d}` : e.d).join('\n');
+  const imgData = montarBandas(bandas);
+  const meta = Object.assign({}, g.meta||{}, {exames:examesTxt});
+  const {error:e2} = await sb.from('mala_guias').update({meta, exame_img:imgData}).eq('id', g.id);
+  if(e2) throw e2;
+  g.meta = meta; g.exame_img = imgData;
+}
+async function carregarImagensPasta(pastaId){
+  const alvo = estado.guias.filter(g=>g.pasta_id===pastaId && g.exame_img===undefined);
+  if(!alvo.length) return;
+  const {data, error} = await sb.from('mala_guias').select('id,exame_img').eq('pasta_id',pastaId);
+  if(error || !data) return;
+  const map = Object.fromEntries(data.map(r=>[r.id, r.exame_img]));
+  alvo.forEach(g=> g.exame_img = map[g.id]||null);
+  if(estado.view==='pasta' && estado.pastaAtual && estado.pastaAtual.id===pastaId) render();
 }
 let _worker=null, _ocrProg=null;
 async function ocrImagem(fonte, prog){
@@ -745,15 +931,28 @@ function extrairNome(texto){
   }
   return tituloCaso(m[1].trim());
 }
-function extrairMeta(texto){
-  const t=limpar(texto); const meta={};
-  const cod = t.match(/\b([0-9A-Z]{4}(?:\.[0-9A-Z]{4}){3,6})\b/);
-  if(cod) meta.codigo = cod[1];
-  return meta;
+function extrairExames(texto){
+  const t = limpar(texto);
+  const m = t.match(/Exames\s+(?:Requisitados|Solicitados)\s*:?\s*([\s\S]*)$/i);
+  const alvo = m ? m[1] : t;
+  const out=[];
+  const re=/(\d{6,9})\s*[-–]\s*([^\n;]+?)(?=(?:\s+\d{6,9}\s*[-–])|[\r\n]|$)/g;
+  let x;
+  while((x=re.exec(alvo))){
+    let d = x[2].trim()
+      .replace(/-{3,}.*$/,'')
+      .replace(/Digitalizado.*$/i,'')
+      .replace(/\s{2,}/g,' ')
+      .replace(/[-–\s]+$/,'')
+      .trim();
+    if(d) out.push({c:x[1], d});
+  }
+  return out;
 }
 
 /* ================= VER GUIA ================= */
 async function verGuia(id){
+  if(selAtivoPara('guia')) return toggleSel(id);
   const g = estado.guias.find(x=>x.id===id); if(!g||!g.arquivo_path) return;
   const {data,error} = await sb.storage.from(BUCKET).createSignedUrl(g.arquivo_path, 180);
   if(error) return toast('Não deu para abrir: '+error.message,true);
@@ -813,6 +1012,12 @@ async function acaoCarimbar(tipo,id){
   const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',id);
   if(error) return toast('Erro ao carimbar: '+error.message,true);
   obj.carimbos=novos; render();
+  if(tipo==='guia' && cod==='lancado'){
+    const fechar=modalCarregando('Lançando guia…','Lendo os exames e recortando a folha.');
+    try{ await processarGuiaLancada(obj, msg=>fechar.progresso(msg)); }
+    catch(err){ console.warn(err); toast('Carimbei, mas não consegui ler os exames: '+(err.message||''),true); }
+    fechar(); render();
+  }
 }
 async function removerCarimbo(ev,tipo,id,idx){
   ev.stopPropagation();
@@ -957,8 +1162,10 @@ function toast(msg,erro){
 }
 
 /* expor para onclick inline */
-Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,abrirMenu,acaoCarimbar,removerCarimbo,
+Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
+  escolherArquivos,escolherPasta,
+  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,
   guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd});
 </script>
 </body>
