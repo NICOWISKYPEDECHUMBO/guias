@@ -175,10 +175,13 @@
   .guia .exames{position:relative;z-index:2;width:100%;margin-top:10px;text-align:left;font-family:Inter;
     font-size:11px;line-height:1.35;color:#1f3a5f;background:#f2f6fc;border:1px dashed #b6c8e6;border-radius:8px;
     padding:7px 9px;max-height:104px;overflow:auto;white-space:pre-wrap;word-break:break-word;cursor:text}
-  .guia .exames:empty::before{content:attr(data-vazio);color:#9fb0c6}
   .guia .exame-wrap{position:relative;z-index:2;width:100%;margin-top:8px;max-height:460px;overflow:auto;
-    border:1px solid #cdd8ea;border-radius:8px;background:#fff}
+    border:1px solid #cdd8ea;border-radius:8px;background:#fff;cursor:zoom-in}
   .guia .exame-img{display:block;width:100%;height:auto}
+  .zoom-box{max-height:74vh;overflow:auto;background:#fff;border-radius:10px;cursor:zoom-in}
+  .zoom-box img{width:100%;height:auto;display:block;transition:width .15s ease}
+  .zoom-box.mais{cursor:zoom-out}
+  .zoom-box.mais img{width:250%;max-width:none}
 
   /* ---------- PLAQUINHA DE NOME (por cima, desenho livre) ---------- */
   .rotulo-topo{position:relative;z-index:3;margin:0 2px 10px;background:linear-gradient(#30353e,#22262d);
@@ -612,11 +615,10 @@ function guiaCard(g, numero){
            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
            onblur="salvarNome('guia','${g.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(g.nome)}</div>
-      <div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
-           data-vazio="Exames (aparecem ao carimbar Lançado)"
+      ${(g.meta&&g.meta.exames)?`<div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
-           onblur="salvarExames('${g.id}',this)">${esc((g.meta&&g.meta.exames)||'').replace(/\n/g,'<br>')}</div>
-      ${g.exame_img?`<div class="exame-wrap" onmousedown="event.stopPropagation()"><img class="exame-img" src="${g.exame_img}" alt="Recorte dos exames" draggable="false"></div>`:''}
+           onblur="salvarExames('${g.id}',this)">${esc(g.meta.exames).replace(/\n/g,'<br>')}</div>`:''}
+      ${g.exame_img?`<div class="exame-wrap" title="Toque para ampliar" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();verRecorte('${g.id}')"><img class="exame-img" src="${g.exame_img}" alt="Recorte dos exames" draggable="false"></div>`:''}
       ${carimbosHTML(g.carimbos, 'guia', g.id, trav)}
     </div>
   </div>`;
@@ -845,12 +847,13 @@ async function lerGuiaOCR(file, prog){
 /* ---- lançar: lê exames de todas as páginas + recorta a faixa "Exames Requisitados" ---- */
 function carregarImg(src){ return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
 function montarBandas(cvs){
-  const W=720;
-  let H=0; const alturas=cvs.map(c=>{ const h=Math.round(c.height*(W/c.width)); H+=h+6; return h; });
+  const W=1200;
+  let H=0; const alturas=cvs.map(c=>{ const h=Math.round(c.height*(W/c.width)); H+=h+8; return h; });
   const out=document.createElement('canvas'); out.width=W; out.height=Math.max(1,H);
   const ctx=out.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,out.height);
-  let y=0; cvs.forEach((c,i)=>{ ctx.drawImage(c,0,y,W,alturas[i]); y+=alturas[i]+6; });
-  return out.toDataURL('image/jpeg', 0.62);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  let y=0; cvs.forEach((c,i)=>{ ctx.drawImage(c,0,y,W,alturas[i]); y+=alturas[i]+8; });
+  return out.toDataURL('image/jpeg', 0.82);
 }
 async function processarGuiaLancada(g, prog){
   await garantirLibs();
@@ -867,7 +870,7 @@ async function processarGuiaLancada(g, prog){
       const page = await pdf.getPage(p);
       const tc = await page.getTextContent();
       const txt = tc.items.map(i=>i.str).join(' ');
-      const cvBanda = await renderRegiao(page, 0.60, 0.97);
+      const cvBanda = await renderRegiao(page, 0.60, 0.97, 3.4);
       bandas.push(cvBanda);
       if(txt.replace(/\s/g,'').length>60) exames.push(...extrairExames(txt));
       else exames.push(...extrairExames(await ocrImagem(cvBanda, prog)));
@@ -948,6 +951,19 @@ function extrairExames(texto){
     if(d) out.push({c:x[1], d});
   }
   return out;
+}
+
+/* ================= VER RECORTE (zoom) ================= */
+function verRecorte(id){
+  const g = estado.guias.find(x=>x.id===id); if(!g||!g.exame_img) return;
+  abrirModal(`<div class="modal modal-visor">
+    <h3 style="margin-bottom:6px">Exames — ${esc(g.nome)}</h3>
+    <p style="margin:0 0 12px">Role para ver todas as folhas. Toque na imagem para ampliar mais.</p>
+    <div class="zoom-box" onclick="this.classList.toggle('mais')">
+      <img src="${g.exame_img}" alt="Recorte dos exames">
+    </div>
+    <div class="linha"><button class="btn" onclick="fecharModal()">Fechar</button></div>
+  </div>`);
 }
 
 /* ================= VER GUIA ================= */
@@ -1163,7 +1179,7 @@ function toast(msg,erro){
 
 /* expor para onclick inline */
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,
-  trancarMala,acaoRenomear,acaoExcluir,verGuia,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
+  trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
   entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,
   guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd});
