@@ -74,6 +74,13 @@
   main{padding:22px 18px 60px;max-width:1180px;width:100%;margin:0 auto;flex:1}
   .barra-acao{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
   .barra-acao h2{margin:0;font-size:19px}
+  .busca{display:flex;align-items:center;gap:8px;background:#1f232a;border:1px solid var(--linha);
+    border-radius:10px;padding:6px 11px;flex:1;min-width:150px;max-width:440px}
+  .busca .lupa{display:flex;color:var(--tinta2)}
+  .busca .lupa svg{width:17px;height:17px;display:block}
+  .busca input{border:none;background:none;outline:none;color:var(--tinta);font-size:14px;width:100%}
+  .busca input::placeholder{color:var(--tinta2)}
+  .busca input::-webkit-search-cancel-button{filter:invert(.6)}
   .barra-sel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 18px;padding:12px 14px;
     background:#20242b;border:1px solid var(--linha);border-radius:12px}
   .barra-sel .cont{font-weight:600;font-size:14px;margin-right:auto}
@@ -255,7 +262,10 @@
   <main>
     <div class="barra-acao">
       <h2 id="titulo-view">Minhas malas</h2>
-      <div class="spacer"></div>
+      <div class="busca">
+        <span class="lupa" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <input id="in-busca" type="search" placeholder="Buscar" oninput="aoBuscar(this.value)" onsearch="aoBuscar(this.value)" onkeydown="if(event.key==='Escape'){this.value='';aoBuscar('')}" autocomplete="off">
+      </div>
       <button id="btn-sel" class="btn secundario">Selecionar</button>
       <button id="btn-novo" class="btn">Nova mala</button>
     </div>
@@ -293,7 +303,8 @@ const estado = {
   view:'mesa',          // mesa | mala | pasta
   malaAtual:null, pastaAtual:null,
   destrancadas:new Set(),
-  modoSel:false, sel:new Set()
+  modoSel:false, sel:new Set(),
+  busca:''
 };
 let logado = false;
 
@@ -384,7 +395,7 @@ const guiasDaPasta = id => estado.guias.filter(g=>g.pasta_id===id)
 const guiasDaMala  = id => estado.guias.filter(g=>g.mala_id===id);
 
 /* ================= NAVEGAÇÃO ================= */
-function limparSelecao(){ estado.modoSel=false; estado.sel.clear(); }
+function limparSelecao(){ estado.modoSel=false; estado.sel.clear(); estado.busca=''; }
 function irMesa(){ limparSelecao(); estado.view='mesa'; estado.malaAtual=null; estado.pastaAtual=null; render(); }
 function abrirMala(id){
   if(selAtivoPara('mala')) return toggleSel(id);
@@ -400,6 +411,24 @@ function abrirPasta(id){
   const pasta = estado.pastas.find(p=>p.id===id); if(!pasta) return;
   limparSelecao();
   estado.pastaAtual = pasta; estado.view='pasta'; render();
+}
+
+/* ================= BUSCA ================= */
+function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function aoBuscar(v){ estado.busca=v; render(); }
+function filtrarBusca(itens, tipo){
+  const q = norm(estado.busca).trim(); if(!q) return itens;
+  return itens.filter(x=>{
+    let alvo = x.nome||'';
+    if(tipo==='guia' && x.meta && x.meta.exames) alvo += ' '+x.meta.exames;
+    return norm(alvo).includes(q);
+  });
+}
+function renderBusca(){
+  const inp=$('in-busca'); if(!inp) return;
+  inp.placeholder = estado.view==='mesa' ? 'Buscar mala'
+                 : estado.view==='mala' ? 'Buscar pasta' : 'Buscar guia ou exame';
+  if(inp.value!==estado.busca) inp.value=estado.busca;
 }
 
 /* ================= SELEÇÃO EM LOTE ================= */
@@ -465,7 +494,7 @@ function renderBarraSel(){
 }
 
 /* ================= RENDER ================= */
-function render(){ fecharMenus(); renderCrumbs(); renderConteudo(); renderBarraSel(); }
+function render(){ fecharMenus(); renderCrumbs(); renderConteudo(); renderBarraSel(); renderBusca(); }
 
 function renderCrumbs(){
   const c=$('crumbs'); let h=`<button class="c" onclick="irMesa()">Mesa</button>`;
@@ -505,7 +534,9 @@ function renderConteudo(){
     $('btn-novo').onclick=novaMala;
     $('btn-novo').style.display='';
     if(!estado.malas.length){ grade.innerHTML=`<div class="vazio">Nenhuma mala ainda. Crie a primeira para começar a guardar suas guias.</div>`; return; }
-    grade.innerHTML = estado.malas.map(m=>malaCard(m)).join('');
+    const ms=filtrarBusca(estado.malas,'mala');
+    grade.innerHTML = ms.length? ms.map(m=>malaCard(m)).join('')
+      : `<div class="vazio">Nenhuma mala encontrada para “${esc(estado.busca)}”.</div>`;
   }
   else if(estado.view==='mala'){
     const m=estado.malaAtual;
@@ -513,15 +544,16 @@ function renderConteudo(){
     $('btn-novo').textContent='Nova pasta';
     $('btn-novo').onclick=novaPasta;
     $('btn-novo').style.display = m.bloqueada ? 'none':'';
-    const ps=pastasDaMala(m.id);
+    const psFull=pastasDaMala(m.id);
+    const ps=filtrarBusca(psFull,'pasta');
     let aviso='';
     if(m.bloqueada){
       aviso=`<div class="vazio" style="border-style:solid;color:var(--tinta)">
         Esta mala está trancada. Para alterar o conteúdo,
         <button class="link" onclick="destrancarMala('${m.id}')">destranque com a senha</button>.</div>`;
     }
-    grade.innerHTML = aviso + (ps.length? ps.map(p=>pastaCard(p)).join('') :
-      `<div class="vazio">Nenhuma pasta nesta mala. Crie uma pasta para organizar as guias.</div>`);
+    grade.innerHTML = aviso + (ps.length? ps.map(p=>pastaCard(p)).join('')
+      : `<div class="vazio">${psFull.length? `Nenhuma pasta encontrada para “${esc(estado.busca)}”.` : 'Nenhuma pasta nesta mala. Crie uma pasta para organizar as guias.'}</div>`);
   }
   else if(estado.view==='pasta'){
     const p=estado.pastaAtual, m=estado.malaAtual;
@@ -530,9 +562,11 @@ function renderConteudo(){
     $('btn-novo').textContent='Adicionar guias';
     $('btn-novo').onclick=adicionarGuia;
     $('btn-novo').style.display = travada ? 'none':'';
-    const gs=guiasDaPasta(p.id);
-    grade.innerHTML = gs.length? gs.map((g,i)=>guiaCard(g,i+1)).join('') :
-      `<div class="vazio">Nenhuma guia nesta pasta. Toque em “Adicionar guia” e envie o PDF ou a foto.</div>`;
+    const gsFull=guiasDaPasta(p.id);
+    const numero=new Map(gsFull.map((g,i)=>[g.id,i+1]));
+    const gs=filtrarBusca(gsFull,'guia');
+    grade.innerHTML = gs.length? gs.map(g=>guiaCard(g, numero.get(g.id))).join('')
+      : `<div class="vazio">${gsFull.length? `Nenhuma guia encontrada para “${esc(estado.busca)}”.` : 'Nenhuma guia nesta pasta. Toque em “Adicionar guias” e envie o PDF ou a foto.'}</div>`;
   }
 }
 
@@ -1179,7 +1213,7 @@ function toast(msg,erro){
 }
 
 /* expor para onclick inline */
-Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,
+Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,aoBuscar,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
   entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,
