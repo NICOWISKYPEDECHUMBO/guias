@@ -72,6 +72,46 @@
   .crumbs .atual{color:var(--tinta);font-weight:600}
   .usuario{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tinta2)}
   main{padding:22px 18px 60px;max-width:1180px;width:100%;margin:0 auto;flex:1}
+  .topo-fixo{position:sticky;top:55px;z-index:19;background:#22262d;margin:-22px -18px 18px;padding:16px 18px 2px;
+    border-bottom:1px solid var(--linha);box-shadow:0 8px 16px rgba(0,0,0,.25)}
+  .topo-fixo .barra-acao{margin-bottom:12px}
+  .topo-fixo .barra-sel,.topo-fixo .drop-alvos{margin-top:0;margin-bottom:12px}
+  .filtro-info{grid-column:1/-1;background:#2a2130;border:1px solid #5b3a52;color:#f0c9e4;border-radius:10px;
+    padding:10px 14px;font-size:13.5px}
+  .item.drop-antes{box-shadow:-4px 0 0 0 #4aa3ff}
+  .item.drop-depois{box-shadow:4px 0 0 0 #4aa3ff}
+
+  /* cor da mala/pasta */
+  .item.temcor.mala .corpo{outline:4px solid var(--cor-item);outline-offset:3px}
+  .item.temcor .rotulo-topo{border-color:var(--cor-item);box-shadow:inset 4px 0 0 var(--cor-item),0 5px 12px rgba(0,0,0,.35)}
+
+  /* etiqueta de observação (pendurada) */
+  .etiqueta-obs{position:absolute;top:34px;right:-3px;z-index:9;cursor:pointer;display:flex;flex-direction:column;
+    align-items:center;transform:rotate(6deg);transform-origin:top center;max-width:120px}
+  .etiqueta-obs .fio{width:13px;height:13px;border:2px solid #b7a06b;border-bottom:none;border-radius:50% 50% 0 0;
+    margin-bottom:-5px;transform:rotate(18deg)}
+  .etiqueta-obs .corpo-obs{background:#1e9bf0;color:#fff;border:2px solid #0f6fbf;border-radius:9px;padding:5px 9px;
+    font-size:11px;font-weight:700;line-height:1.15;box-shadow:0 5px 12px rgba(0,0,0,.4);max-width:120px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .etiqueta-obs.vazia .corpo-obs{background:#2b3340;color:#9aa3b0;border-color:#454b56;font-weight:600}
+
+  /* letreiro neon */
+  .neon{display:inline-flex;align-items:center;font-family:Archivo;font-weight:800;letter-spacing:1px;
+    text-transform:uppercase;font-size:10.5px;padding:5px 10px;border-radius:8px;background:#0e1116;cursor:pointer;
+    border:1px solid currentColor;white-space:nowrap}
+  .neon.prob{color:#ff4d6d;text-shadow:0 0 6px rgba(255,77,109,.9);
+    box-shadow:0 0 9px rgba(255,77,109,.55),inset 0 0 7px rgba(255,77,109,.3)}
+  .neon.ok{color:#39ff14;text-shadow:0 0 6px rgba(57,255,20,.8);
+    box-shadow:0 0 8px rgba(57,255,20,.4),inset 0 0 6px rgba(57,255,20,.25)}
+  .guia .neon-linha{position:relative;z-index:2;margin-top:8px}
+  .guia .neon{font-size:10px;padding:4px 9px}
+
+  /* paleta de cores */
+  .modal textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--linha);background:#1f232a;
+    color:#fff;font-size:15px;font-family:inherit;resize:vertical;min-height:96px}
+  .paleta{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 4px}
+  .swatch{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.25);cursor:pointer}
+  .swatch:hover{transform:scale(1.08)}
   .barra-acao{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
   .barra-acao h2{margin:0;font-size:19px}
   .busca{display:flex;align-items:center;gap:8px;background:#1f232a;border:1px solid var(--linha);
@@ -289,6 +329,7 @@
       <button id="btn-sair" class="btn secundario" style="padding:8px 12px">Sair</button></div>
   </header>
   <main>
+    <div class="topo-fixo">
     <div class="barra-acao">
       <h2 id="titulo-view">Minhas malas</h2>
       <div class="busca">
@@ -300,6 +341,7 @@
     </div>
     <div id="barra-sel" class="barra-sel oculto"></div>
     <div id="drop-alvos" class="drop-alvos oculto"></div>
+    </div>
     <div id="grade" class="grade"></div>
   </main>
 </div>
@@ -337,7 +379,7 @@ const estado = {
   malaAtual:null, pastaAtual:null,
   destrancadas:new Set(),
   modoSel:false, sel:new Set(),
-  busca:''
+  busca:'', soProblemas:false
 };
 let logado = false;
 
@@ -418,17 +460,32 @@ async function carregarTudo(){
   const [m,p,g] = await Promise.all([
     sb.from('malas').select('*').order('created_at'),
     sb.from('mala_pastas').select('*').order('created_at'),
-    sb.from('mala_guias').select('id,mala_id,pasta_id,nome,carimbos,ordem,meta,arquivo_path,created_at').order('created_at'),
+    sb.from('mala_guias').select('id,mala_id,pasta_id,nome,carimbos,ordem,meta,arquivo_path,created_at,obs').order('created_at'),
   ]);
   estado.malas = m.data||[]; estado.pastas = p.data||[]; estado.guias = g.data||[];
 }
-const pastasDaMala = id => estado.pastas.filter(p=>p.mala_id===id);
-const guiasDaPasta = id => estado.guias.filter(g=>g.pasta_id===id)
-  .sort((a,b)=>((a.ordem??1e9)-(b.ordem??1e9)) || ((a.created_at||'')<(b.created_at||'')?-1:1));
+const ordenar = arr => arr.slice().sort((a,b)=>((a.ordem??1e9)-(b.ordem??1e9)) || ((a.created_at||'')<(b.created_at||'')?-1:1));
+const malasOrd = () => ordenar(estado.malas);
+const pastasDaMala = id => ordenar(estado.pastas.filter(p=>p.mala_id===id));
+const guiasDaPasta = id => ordenar(estado.guias.filter(g=>g.pasta_id===id));
 const guiasDaMala  = id => estado.guias.filter(g=>g.mala_id===id);
 
 /* ================= NAVEGAÇÃO ================= */
-function limparSelecao(){ estado.modoSel=false; estado.sel.clear(); estado.busca=''; }
+function limparSelecao(){ estado.modoSel=false; estado.sel.clear(); estado.busca=''; estado.soProblemas=false; }
+
+/* ---- status "a resolver" (guia sem carimbo Lançado) ---- */
+function guiaTemLancado(g){ return Array.isArray(g.carimbos) && g.carimbos.some(c=>c && c.t==='lancado'); }
+function problemasPasta(id){ return guiasDaPasta(id).filter(g=>!guiaTemLancado(g)).length; }
+function problemasMala(id){ return guiasDaMala(id).filter(g=>!guiaTemLancado(g)).length; }
+function limparProblemas(){ estado.soProblemas=false; render(); }
+
+/* ---- cor ---- */
+function escurecer(hex, f){
+  const m=/^#?([0-9a-f]{6})$/i.exec(hex||''); if(!m) return hex||'#000';
+  let n=parseInt(m[1],16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.round(r*f); g=Math.round(g*f); b=Math.round(b*f);
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
 function irMesa(){ limparSelecao(); estado.view='mesa'; estado.malaAtual=null; estado.pastaAtual=null; render(); }
 function abrirMala(id){
   if(selAtivoPara('mala')) return toggleSel(id);
@@ -657,6 +714,9 @@ function botaoAcoes(tipo,id){
   return `<button class="acoes-btn" onclick="abrirMenu(event,'${tipo}','${id}')">⋯</button>`;
 }
 
+function bannerProblemas(){
+  return estado.soProblemas ? `<div class="filtro-info">Mostrando só o que está <b>a resolver</b> · <button class="link" onclick="limparProblemas()">ver tudo</button></div>` : '';
+}
 function renderConteudo(){
   const grade=$('grade');
   if(estado.view==='mesa'){
@@ -665,9 +725,10 @@ function renderConteudo(){
     $('btn-novo').onclick=novaMala;
     $('btn-novo').style.display='';
     if(!estado.malas.length){ grade.innerHTML=`<div class="vazio">Nenhuma mala ainda. Crie a primeira para começar a guardar suas guias.</div>`; return; }
-    const ms=filtrarBusca(estado.malas,'mala');
-    grade.innerHTML = ms.length? ms.map(m=>malaCard(m)).join('')
-      : `<div class="vazio">Nenhuma mala encontrada para “${esc(estado.busca)}”.</div>`;
+    let ms=filtrarBusca(malasOrd(),'mala');
+    if(estado.soProblemas) ms=ms.filter(m=>problemasMala(m.id)>0);
+    grade.innerHTML = bannerProblemas() + (ms.length? ms.map(m=>malaCard(m)).join('')
+      : `<div class="vazio">Nenhuma mala ${estado.soProblemas?'com pendências':'encontrada para “'+esc(estado.busca)+'”'}.</div>`);
   }
   else if(estado.view==='mala'){
     const m=estado.malaAtual;
@@ -676,15 +737,16 @@ function renderConteudo(){
     $('btn-novo').onclick=novaPasta;
     $('btn-novo').style.display = m.bloqueada ? 'none':'';
     const psFull=pastasDaMala(m.id);
-    const ps=filtrarBusca(psFull,'pasta');
+    let ps=filtrarBusca(psFull,'pasta');
+    if(estado.soProblemas) ps=ps.filter(p=>problemasPasta(p.id)>0);
     let aviso='';
     if(m.bloqueada){
       aviso=`<div class="vazio" style="border-style:solid;color:var(--tinta)">
         Esta mala está trancada. Para alterar o conteúdo,
         <button class="link" onclick="destrancarMala('${m.id}')">destranque com a senha</button>.</div>`;
     }
-    grade.innerHTML = aviso + (ps.length? ps.map(p=>pastaCard(p)).join('')
-      : `<div class="vazio">${psFull.length? `Nenhuma pasta encontrada para “${esc(estado.busca)}”.` : 'Nenhuma pasta nesta mala. Crie uma pasta para organizar as guias.'}</div>`);
+    grade.innerHTML = bannerProblemas() + aviso + (ps.length? ps.map(p=>pastaCard(p)).join('')
+      : `<div class="vazio">${psFull.length? `Nenhuma pasta ${estado.soProblemas?'com pendências':'encontrada para “'+esc(estado.busca)+'”'}.` : 'Nenhuma pasta nesta mala. Crie uma pasta para organizar as guias.'}</div>`);
   }
   else if(estado.view==='pasta'){
     const p=estado.pastaAtual, m=estado.malaAtual;
@@ -695,22 +757,27 @@ function renderConteudo(){
     $('btn-novo').style.display = travada ? 'none':'';
     const gsFull=guiasDaPasta(p.id);
     const numero=new Map(gsFull.map((g,i)=>[g.id,i+1]));
-    const gs=filtrarBusca(gsFull,'guia');
-    grade.innerHTML = gs.length? gs.map(g=>guiaCard(g, numero.get(g.id))).join('')
-      : `<div class="vazio">${gsFull.length? `Nenhuma guia encontrada para “${esc(estado.busca)}”.` : 'Nenhuma guia nesta pasta. Toque em “Adicionar guias”, ou arraste os arquivos/uma pasta do computador para cá.'}</div>`;
+    let gs=filtrarBusca(gsFull,'guia');
+    if(estado.soProblemas) gs=gs.filter(g=>!guiaTemLancado(g));
+    grade.innerHTML = bannerProblemas() + (gs.length? gs.map(g=>guiaCard(g, numero.get(g.id))).join('')
+      : `<div class="vazio">${gsFull.length? `Nenhuma guia ${estado.soProblemas?'a resolver':'encontrada para “'+esc(estado.busca)+'”'}.` : 'Nenhuma guia nesta pasta. Toque em “Adicionar guias”, ou arraste os arquivos/uma pasta do computador para cá.'}</div>`);
   }
 }
 
 /* ----- desenhos (SVG) ----- */
-const SVG_PASTA = `<svg class="folder-svg" viewBox="0 0 240 190" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+function pastaSVG(cor){
+  const frente = cor || '#f7bb1f';
+  const fundo  = escurecer(frente, 0.82);
+  return `<svg class="folder-svg" viewBox="0 0 240 190" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
   <path d="M30 60 h64 l16 -16 h40 a10 10 0 0 1 10 10 v6 h44 a12 12 0 0 1 12 12 v78 a12 12 0 0 1 -12 12 H30 a12 12 0 0 1 -12 -12 V72 a12 12 0 0 1 12 -12 z"
-        fill="#e3a417" stroke="#221809" stroke-width="6" stroke-linejoin="round"/>
+        fill="${fundo}" stroke="#221809" stroke-width="6" stroke-linejoin="round"/>
   <rect x="54" y="46" width="150" height="86" rx="7" fill="#ffffff" stroke="#c7c0ae" stroke-width="3"/>
   <rect x="62" y="40" width="150" height="86" rx="7" fill="#fbfaf6" stroke="#c7c0ae" stroke-width="3"/>
   <path d="M18 176 V102 a14 14 0 0 1 14 -14 L150 72 a10 10 0 0 1 6 0 L208 84 a12 12 0 0 1 10 12 V176 a12 12 0 0 1 -12 12 H30 a12 12 0 0 1 -12 -12 z"
-        fill="#f7bb1f" stroke="#221809" stroke-width="6" stroke-linejoin="round"/>
+        fill="${frente}" stroke="#221809" stroke-width="6" stroke-linejoin="round"/>
   <path d="M34 158 V108 a8 8 0 0 1 8 -8 L122 92" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.55"/>
 </svg>`;
+}
 const SVG_CADUCEU = `<svg class="caduceu" viewBox="0 0 60 92" width="34" height="52" aria-hidden="true">
   <line x1="30" y1="14" x2="30" y2="84" stroke="#0f6b3f" stroke-width="6.5" stroke-linecap="round"/>
   <circle cx="30" cy="11" r="6.5" fill="#12844f"/>
@@ -720,16 +787,41 @@ const SVG_CADUCEU = `<svg class="caduceu" viewBox="0 0 60 92" width="34" height=
   <circle cx="43.5" cy="15.5" r="1.6" fill="#0f6b3f"/>
 </svg>`;
 
+/* ----- componentes dos cards ----- */
+function etiquetaObsHTML(tipo,id,obs){
+  const tem = obs && obs.trim();
+  const txt = tem ? esc(obs.trim()) : 'Obs';
+  return `<div class="etiqueta-obs ${tem?'':'vazia'}" title="${tem?'Ver observação':'Adicionar observação'}"
+    onclick="event.stopPropagation();abrirObs('${tipo}','${id}')" onmousedown="event.stopPropagation()" draggable="false">
+    <span class="fio"></span><span class="corpo-obs">${txt}</span></div>`;
+}
+function neonHTML(tipo,id){
+  if(tipo==='guia'){
+    const g=estado.guias.find(x=>x.id===id);
+    const ok=guiaTemLancado(g);
+    return `<span class="neon ${ok?'ok':'prob'}" onclick="event.stopPropagation();neonGuia('${id}')" onmousedown="event.stopPropagation()">${ok?'Lançado':'A resolver'}</span>`;
+  }
+  const prob = tipo==='mala'? problemasMala(id) : problemasPasta(id);
+  if(prob>0) return `<span class="neon prob" onclick="event.stopPropagation();neon${tipo==='mala'?'Mala':'Pasta'}('${id}')" onmousedown="event.stopPropagation()">${prob} a resolver</span>`;
+  return `<span class="neon ok" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">Tudo lançado</span>`;
+}
+
 /* ----- cards ----- */
 function malaCard(m){
   const n = guiasDaMala(m.id).length;
   const trav = !!m.bloqueada;
   const selMode = selAtivoPara('mala');
-  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''}" data-id="${m.id}">
+  const dnd = (trav || selMode) ? '' :
+    `draggable="true" ondragstart="malaDragStart(event,'${m.id}')" ondragover="malaDragOver(event,'${m.id}')"
+     ondragleave="malaDragLeave(event)" ondrop="malaDrop(event,'${m.id}')" ondragend="malaDragEnd(event)"`;
+  const corSty = m.cor ? `style="--cor-item:${m.cor}"` : '';
+  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''} ${m.cor?'temcor':''}" data-id="${m.id}" ${corSty} ${dnd}>
     ${selMode ? selChk('mala',m.id) : botaoAcoes('mala',m.id)}
+    ${etiquetaObsHTML('mala',m.id,m.obs)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Mala</div>
-      <div class="nome-edit" contenteditable="${trav?'false':'true'}"
+      <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false" onmousedown="event.stopPropagation()"
+           onclick="event.stopPropagation()"
            onblur="salvarNome('mala','${m.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(m.nome)}</div>
     </div>
@@ -740,7 +832,7 @@ function malaCard(m){
       <span class="latch d"><i></i><i></i><i></i></span>
       ${m.bloqueada?`<span class="cadeado" title="Trancada">🔒</span>`:''}
     </div>
-    <div class="contador">${chipContagem(n)}</div>
+    <div class="contador">${chipContagem(n)} ${neonHTML('mala',m.id)}</div>
     ${carimbosHTML(m.carimbos, 'mala', m.id, trav)}
   </div>`;
 }
@@ -749,9 +841,12 @@ function pastaCard(p){
   const trav = !!estado.malaAtual.bloqueada;
   const selMode = selAtivoPara('pasta');
   const dnd = (trav || selMode) ? '' :
-    `draggable="true" ondragstart="pastaDragStart(event,'${p.id}')" ondragend="pastaDragEnd(event)"`;
-  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''}" data-id="${p.id}" ${dnd}>
+    `draggable="true" ondragstart="pastaDragStart(event,'${p.id}')" ondragover="pastaDragOver(event,'${p.id}')"
+     ondragleave="pastaDragLeave(event)" ondrop="pastaDrop(event,'${p.id}')" ondragend="pastaDragEnd(event)"`;
+  const corSty = p.cor ? `style="--cor-item:${p.cor}"` : '';
+  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''} ${p.cor?'temcor':''}" data-id="${p.id}" ${corSty} ${dnd}>
     ${selMode ? selChk('pasta',p.id) : (trav?'':botaoAcoes('pasta',p.id))}
+    ${etiquetaObsHTML('pasta',p.id,p.obs)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Pasta</div>
       <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false" onmousedown="event.stopPropagation()"
@@ -760,9 +855,9 @@ function pastaCard(p){
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(p.nome)}</div>
     </div>
     <div class="corpo" onclick="abrirPasta('${p.id}')" style="cursor:pointer">
-      ${SVG_PASTA}
+      ${pastaSVG(p.cor)}
     </div>
-    <div class="contador"><span class="chip">${n} guia${n===1?'':'s'}</span></div>
+    <div class="contador"><span class="chip">${n} guia${n===1?'':'s'}</span> ${neonHTML('pasta',p.id)}</div>
     ${carimbosHTML(p.carimbos, 'pasta', p.id, trav)}
   </div>`;
 }
@@ -775,6 +870,7 @@ function guiaCard(g, numero){
      ondragleave="guiaDragLeave(event)" ondrop="guiaDrop(event,'${g.id}')" ondragend="guiaDragEnd(event)"`;
   return `<div class="item guia ${trav?'travado':''} ${estado.sel.has(g.id)?'sel':''}" data-id="${g.id}" ${dnd}>
     ${brocheHTML(numero)}
+    ${etiquetaObsHTML('guia',g.id,g.obs)}
     <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
       <div class="guia-logo" role="img" aria-label="Dedica Saúde"></div>
       ${selMode ? selChk('guia',g.id) : (trav?'':botaoAcoes('guia',g.id))}
@@ -782,6 +878,7 @@ function guiaCard(g, numero){
            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
            onblur="salvarNome('guia','${g.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(g.nome)}</div>
+      <div class="neon-linha">${neonHTML('guia',g.id)}</div>
       <div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
            onblur="salvarExames('${g.id}',this)">${esc((g.meta&&g.meta.exames)||'').replace(/\n/g,'<br>')}</div>
@@ -839,7 +936,112 @@ function guiaDragEnd(ev){ ev.currentTarget.style.opacity='';
 function pastaDragStart(ev,id){ _dragItem={tipo:'pasta',id}; ev.dataTransfer.effectAllowed='move';
   try{ ev.dataTransfer.setData('text/plain',id); }catch(_){}
   ev.currentTarget.style.opacity='0.5'; mostrarAlvos(); }
-function pastaDragEnd(ev){ ev.currentTarget.style.opacity=''; _dragItem=null; esconderAlvos(); }
+function pastaDragEnd(ev){ ev.currentTarget.style.opacity=''; _dragItem=null; esconderAlvos();
+  document.querySelectorAll('.drop-antes,.drop-depois').forEach(e=>e.classList.remove('drop-antes','drop-depois')); }
+function pastaDragOver(ev,id){ if(!_dragItem||_dragItem.tipo!=='pasta'||_dragItem.id===id) return;
+  ev.preventDefault(); const it=ev.currentTarget,r=it.getBoundingClientRect();
+  const antes=(ev.clientX-r.left)<r.width/2; it.classList.toggle('drop-antes',antes); it.classList.toggle('drop-depois',!antes); }
+function pastaDragLeave(ev){ ev.currentTarget.classList.remove('drop-antes','drop-depois'); }
+function pastaDrop(ev,id){ if(!_dragItem||_dragItem.tipo!=='pasta') return;
+  ev.preventDefault(); const it=ev.currentTarget,r=it.getBoundingClientRect();
+  const antes=(ev.clientX-r.left)<r.width/2; it.classList.remove('drop-antes','drop-depois');
+  const drag=_dragItem.id; if(drag && drag!==id){ reordenarPasta(drag,id,antes); }
+  _dragItem=null; esconderAlvos(); }
+
+function malaDragStart(ev,id){ _dragItem={tipo:'mala',id}; ev.dataTransfer.effectAllowed='move';
+  try{ ev.dataTransfer.setData('text/plain',id); }catch(_){}
+  ev.currentTarget.style.opacity='0.5'; }
+function malaDragOver(ev,id){ if(!_dragItem||_dragItem.tipo!=='mala'||_dragItem.id===id) return;
+  ev.preventDefault(); const it=ev.currentTarget,r=it.getBoundingClientRect();
+  const antes=(ev.clientX-r.left)<r.width/2; it.classList.toggle('drop-antes',antes); it.classList.toggle('drop-depois',!antes); }
+function malaDragLeave(ev){ ev.currentTarget.classList.remove('drop-antes','drop-depois'); }
+function malaDrop(ev,id){ if(!_dragItem||_dragItem.tipo!=='mala') return;
+  ev.preventDefault(); const it=ev.currentTarget,r=it.getBoundingClientRect();
+  const antes=(ev.clientX-r.left)<r.width/2; it.classList.remove('drop-antes','drop-depois');
+  const drag=_dragItem.id; if(drag && drag!==id){ reordenarMala(drag,id,antes); }
+  _dragItem=null; }
+function malaDragEnd(ev){ ev.currentTarget.style.opacity='';
+  document.querySelectorAll('.drop-antes,.drop-depois').forEach(e=>e.classList.remove('drop-antes','drop-depois')); _dragItem=null; }
+
+async function reindexar(tabela, arrSorted, dragId, targetId, antes, listaState){
+  let arr=arrSorted.filter(x=>x.id!==dragId);
+  let idx=arr.findIndex(x=>x.id===targetId); if(idx<0) return false;
+  if(!antes) idx+=1;
+  const dragged=listaState.find(x=>x.id===dragId); if(!dragged) return false;
+  arr.splice(idx,0,dragged);
+  for(let i=0;i<arr.length;i++){
+    const novo=i+1;
+    if(arr[i].ordem!==novo){
+      const {error}=await sb.from(tabela).update({ordem:novo}).eq('id',arr[i].id);
+      if(!error) arr[i].ordem=novo;
+    }
+  }
+  return true;
+}
+async function reordenarMala(dragId,targetId,antes){
+  if(await reindexar('malas', malasOrd(), dragId, targetId, antes, estado.malas)) render();
+}
+async function reordenarPasta(dragId,targetId,antes){
+  if(await reindexar('mala_pastas', pastasDaMala(estado.malaAtual.id), dragId, targetId, antes, estado.pastas)) render();
+}
+
+/* ================= OBSERVAÇÃO (etiqueta) ================= */
+function abrirObs(tipo,id){
+  const {lista}=refs(tipo); const obj=lista.find(x=>x.id===id); if(!obj) return;
+  const trav = (tipo!=='mala') && estado.malaAtual && estado.malaAtual.bloqueada;
+  const atual = obj.obs||'';
+  abrirModal(`<div class="modal">
+    <h3>Observação</h3>
+    <p>Escreva o que quiser. Fica na etiqueta do item.</p>
+    <textarea id="obs-txt" rows="5" ${trav?'disabled':''}>${esc(atual)}</textarea>
+    <div class="linha">
+      ${(!trav && atual)?`<button class="btn perigo" onclick="excluirObs('${tipo}','${id}')">Excluir</button>`:''}
+      <button class="btn secundario" onclick="fecharModal()">${trav?'Fechar':'Cancelar'}</button>
+      ${trav?'':`<button class="btn" onclick="salvarObs('${tipo}','${id}')">Salvar</button>`}
+    </div></div>`);
+  const t=$('obs-txt'); if(t && !trav) t.focus();
+}
+async function salvarObs(tipo,id){
+  const el=$('obs-txt'); const val=el?el.value.trim():'';
+  const {tabela,lista}=refs(tipo); const obj=lista.find(x=>x.id===id); if(!obj) return;
+  const {error}=await sb.from(tabela).update({obs:val||null}).eq('id',id);
+  if(error) return toast('Erro ao salvar: '+error.message,true);
+  obj.obs=val||null; fecharModal(); render();
+}
+async function excluirObs(tipo,id){
+  const {tabela,lista}=refs(tipo); const obj=lista.find(x=>x.id===id); if(!obj) return;
+  const {error}=await sb.from(tabela).update({obs:null}).eq('id',id);
+  if(error) return toast('Erro: '+error.message,true);
+  obj.obs=null; fecharModal(); render();
+}
+
+/* ================= NEON: pendências ================= */
+function neonMala(id){ if(problemasMala(id)<=0) return; abrirMala(id); estado.soProblemas=true; render(); }
+function neonPasta(id){ if(problemasPasta(id)<=0) return; abrirPasta(id); estado.soProblemas=true; render(); }
+function neonGuia(id){ const g=estado.guias.find(x=>x.id===id); if(g && !guiaTemLancado(g)) verGuia(id); }
+
+/* ================= COR ================= */
+const CORES=['#e11d48','#f97316','#f7bb1f','#22c55e','#0ea5e9','#6366f1','#a855f7','#14b8a6','#94a3b8','#111827'];
+function escolherCor(tipo,id){
+  fecharMenus();
+  const {lista}=refs(tipo); const obj=lista.find(x=>x.id===id); if(!obj) return;
+  const swatches=CORES.map(c=>`<button class="swatch" style="background:${c}" onclick="salvarCor('${tipo}','${id}','${c.replace('#','%23')}')"></button>`).join('');
+  abrirModal(`<div class="modal">
+    <h3>Cor da ${tipo==='mala'?'mala':'pasta'}</h3>
+    <p>Escolha uma cor para identificar.</p>
+    <div class="paleta">${swatches}</div>
+    <div class="linha">
+      <button class="btn secundario" onclick="salvarCor('${tipo}','${id}','')">Sem cor</button>
+      <button class="btn secundario" onclick="fecharModal()">Cancelar</button>
+    </div></div>`);
+}
+async function salvarCor(tipo,id,cor){
+  cor=(cor||'').replace('%23','#');
+  const {tabela,lista}=refs(tipo); const obj=lista.find(x=>x.id===id); if(!obj) return;
+  const {error}=await sb.from(tabela).update({cor:cor||null}).eq('id',id);
+  if(error) return toast('Erro: '+error.message,true);
+  obj.cor=cor||null; fecharModal(); render();
+}
 
 /* barra de destinos (soltar para mover) */
 function esconderAlvos(){ const b=$('drop-alvos'); if(b){ b.classList.add('oculto'); b.innerHTML=''; } }
@@ -917,14 +1119,16 @@ async function salvarExames(id, el){
 async function novaMala(){
   const nome = await pedirTexto('Nova mala','Nome da mala (você pode renomear depois):','Mala');
   if(nome===null) return;
-  const {data,error} = await sb.from('malas').insert({nome:nome||'Mala'}).select().single();
+  const ordem = estado.malas.reduce((m,x)=>Math.max(m,x.ordem||0),0)+1;
+  const {data,error} = await sb.from('malas').insert({nome:nome||'Mala', ordem}).select().single();
   if(error) return toast('Erro ao criar mala: '+error.message,true);
   estado.malas.push(data); render();
 }
 async function novaPasta(){
   const nome = await pedirTexto('Nova pasta','Nome da pasta:','Pasta');
   if(nome===null) return;
-  const {data,error} = await sb.from('mala_pastas').insert({nome:nome||'Pasta',mala_id:estado.malaAtual.id}).select().single();
+  const ordem = estado.pastas.filter(p=>p.mala_id===estado.malaAtual.id).reduce((m,x)=>Math.max(m,x.ordem||0),0)+1;
+  const {data,error} = await sb.from('mala_pastas').insert({nome:nome||'Pasta',mala_id:estado.malaAtual.id, ordem}).select().single();
   if(error) return toast('Erro ao criar pasta: '+error.message,true);
   estado.pastas.push(data); render();
 }
@@ -1273,12 +1477,16 @@ function abrirMenu(ev,tipo,id){
     }else{
       itens  = `<button onclick="acaoCarimbar('mala','${id}')">Carimbar</button>`;
       itens += `<button onclick="acaoRenomear('mala','${id}')">Renomear</button>`;
+      itens += `<button onclick="escolherCor('mala','${id}')">Cor</button>`;
+      itens += `<button onclick="abrirObs('mala','${id}')">Observação</button>`;
       itens += `<button onclick="trancarMala('${id}')">Trancar (20 a 50, com senha)</button>`;
       itens += `<div class="div"></div><button class="del" onclick="acaoExcluir('mala','${id}')">Excluir</button>`;
     }
   }else{
     itens  = `<button onclick="acaoCarimbar('${tipo}','${id}')">Carimbar</button>`;
     itens += `<button onclick="acaoRenomear('${tipo}','${id}')">Renomear</button>`;
+    if(tipo==='pasta') itens += `<button onclick="escolherCor('pasta','${id}')">Cor</button>`;
+    itens += `<button onclick="abrirObs('${tipo}','${id}')">Observação</button>`;
     itens += `<div class="div"></div><button class="del" onclick="acaoExcluir('${tipo}','${id}')">Excluir</button>`;
   }
   menu.innerHTML=itens; alvo.appendChild(menu);
@@ -1507,7 +1715,11 @@ Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirM
   escolherArquivos,escolherPasta,
   entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,
   guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd,
-  pastaDragStart,pastaDragEnd,alvoOver,alvoLeave,alvoDrop});
+  pastaDragStart,pastaDragEnd,pastaDragOver,pastaDragLeave,pastaDrop,
+  malaDragStart,malaDragOver,malaDragLeave,malaDrop,malaDragEnd,
+  abrirObs,salvarObs,excluirObs,escolherCor,salvarCor,
+  neonMala,neonPasta,neonGuia,limparProblemas,verRecorte,
+  alvoOver,alvoLeave,alvoDrop});
 </script>
 </body>
 </html>
