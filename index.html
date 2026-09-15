@@ -1233,19 +1233,27 @@ function verRecorte(id){
 async function verGuia(id){
   if(selAtivoPara('guia')) return toggleSel(id);
   const g = estado.guias.find(x=>x.id===id); if(!g||!g.arquivo_path) return;
-  const {data,error} = await sb.storage.from(BUCKET).createSignedUrl(g.arquivo_path, 180);
-  if(error) return toast('Não deu para abrir: '+error.message,true);
-  const url = data.signedUrl;
+  const ext = (g.arquivo_path.split('.').pop()||'pdf').toLowerCase();
+  const nomeArq = `${nomeArquivoSeguro(g.nome)}.${ext}`;
+  const prev = await sb.storage.from(BUCKET).createSignedUrl(g.arquivo_path, 300);
+  if(prev.error) return toast('Não deu para abrir: '+prev.error.message,true);
+  const dl = await sb.storage.from(BUCKET).createSignedUrl(g.arquivo_path, 300, { download: nomeArq });
+  const url = prev.data.signedUrl;
+  const urlDl = (dl.data && dl.data.signedUrl) || url;
   const ehImg = /\.(png|jpe?g|webp)$/i.test(g.arquivo_path);
   abrirModal(`
     <div class="modal modal-visor">
       <h3 style="margin-bottom:12px">${esc(g.nome)}</h3>
       ${ehImg?`<img src="${url}">`:`<iframe src="${url}"></iframe>`}
       <div class="linha">
+        <a class="btn" href="${urlDl}" download="${esc(nomeArq)}">Baixar</a>
         <a class="btn secundario" href="${url}" target="_blank" rel="noopener">Abrir em nova aba</a>
-        <button class="btn" onclick="fecharModal()">Fechar</button>
+        <button class="btn secundario" onclick="fecharModal()">Fechar</button>
       </div>
     </div>`);
+}
+function nomeArquivoSeguro(nome){
+  return (nome||'guia').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim() || 'guia';
 }
 
 /* ================= MENU DE AÇÕES ================= */
