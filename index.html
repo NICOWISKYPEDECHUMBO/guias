@@ -498,15 +498,17 @@ async function carimbarSelecionados(){
   const pesado = (tipo==='guia' && cod==='lancado');
   const fechar = (pesado || ids.length>4) ? modalCarregando('Carimbando…',`0 de ${ids.length}`) : null;
   let ok=0, pulados=0;
+  const snap=[];
   for(let i=0;i<ids.length;i++){
     const obj=lista.find(x=>x.id===ids[i]);
     if(!obj){ continue; }
     if(tipo==='mala' && obj.bloqueada){ pulados++; if(fechar)fechar.progresso(`${i+1} de ${ids.length}`); continue; }
+    const before = Array.isArray(obj.carimbos)?[...obj.carimbos]:[];
     const entrada={t:cod, em:new Date().toISOString()};
     if(cod==='remessa') entrada.n=numRem;
-    const novos=[...(Array.isArray(obj.carimbos)?obj.carimbos:[]), entrada];
+    const novos=[...before, entrada];
     const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',obj.id);
-    if(!error){ obj.carimbos=novos; ok++; }
+    if(!error){ obj.carimbos=novos; ok++; snap.push({tipo, id:obj.id, before}); }
     if(pesado && !error){
       try{ await processarGuiaLancada(obj, msg=>fechar.progresso(`${i+1} de ${ids.length} — ${msg}`)); }
       catch(err){ console.warn(err); }
@@ -515,7 +517,8 @@ async function carimbarSelecionados(){
   }
   if(fechar) fechar();
   sairSelecao();
-  toast(`${ok} carimbado(s)${pulados?` · ${pulados} mala(s) trancada(s) puladas`:''}.`);
+  if(snap.length) toastAcao(`${ok} carimbado(s)${pulados?` · ${pulados} trancada(s) puladas`:''}.`, 'Desfazer', ()=> restaurarCarimbos(snap));
+  else toast(`Nada carimbado${pulados?` · ${pulados} mala(s) trancada(s)`:''}.`, true);
 }
 function escolherMala(titulo){
   return new Promise(res=>{
@@ -1284,13 +1287,14 @@ async function acaoCarimbar(tipo,id){
   if(tipo==='mala' && obj.bloqueada) return toast('Mala trancada. Destranque para carimbar.',true);
   const cod = await escolherCarimbo();
   if(!cod) return;
+  const antes = Array.isArray(obj.carimbos) ? [...obj.carimbos] : [];
   const entrada = {t:cod, em:new Date().toISOString()};
   if(cod==='remessa'){
     const num = await pedirTexto('Número da remessa','Digite o número da remessa para carimbar:','', 'Ex.: 1234');
     if(num===null || !num.trim()) return;
     entrada.n = num.trim();
   }
-  const novos = [...(Array.isArray(obj.carimbos)?obj.carimbos:[]), entrada];
+  const novos = [...antes, entrada];
   const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',id);
   if(error) return toast('Erro ao carimbar: '+error.message,true);
   obj.carimbos=novos; render(); animarCarimbo(id);
@@ -1300,6 +1304,16 @@ async function acaoCarimbar(tipo,id){
     catch(err){ console.warn(err); toast('Carimbei, mas não consegui ler os exames: '+(err.message||''),true); }
     fechar(); render();
   }
+  toastAcao('Carimbo aplicado.', 'Desfazer', ()=> restaurarCarimbos([{tipo, id, before:antes}]));
+}
+async function restaurarCarimbos(snap){
+  for(const s of snap){
+    const {tabela,lista}=refs(s.tipo);
+    const {error}=await sb.from(tabela).update({carimbos:s.before}).eq('id',s.id);
+    if(!error){ const obj=lista.find(x=>x.id===s.id); if(obj) obj.carimbos=s.before; }
+  }
+  render();
+  toast(snap.length>1?'Carimbos desfeitos.':'Carimbo desfeito.');
 }
 const SVG_PRESSER=`<svg viewBox="0 0 80 104" width="78" height="100" aria-hidden="true">
   <ellipse cx="40" cy="98" rx="26" ry="6" fill="rgba(0,0,0,.18)"/>
@@ -1450,6 +1464,21 @@ function modalCarregando(titulo,texto){
   const f=()=>fecharModal();
   f.progresso=(m)=>{ const e=$('mc-prog'); if(e) e.textContent=m; };
   return f;
+}
+function toastAcao(msg, rotulo, fn){
+  const d=document.createElement('div');
+  d.style.cssText=`position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:99;
+    background:#213a26;color:#bde8c9;border:1px solid #2b4a35;padding:9px 10px 9px 16px;border-radius:12px;
+    font-size:14px;max-width:92vw;box-shadow:0 12px 30px rgba(0,0,0,.5);display:flex;align-items:center;gap:14px`;
+  const s=document.createElement('span'); s.textContent=msg; d.appendChild(s);
+  const b=document.createElement('button'); b.textContent=rotulo;
+  b.style.cssText=`background:#2f8f4e;color:#fff;border:none;border-radius:8px;padding:7px 13px;font-weight:700;
+    cursor:pointer;font-family:inherit;font-size:13.5px`;
+  b.onclick=()=>{ d.remove(); try{ fn(); }catch(e){ console.warn(e); } };
+  d.appendChild(b);
+  document.body.appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; }, 7000);
+  setTimeout(()=>d.remove(), 7500);
 }
 function toast(msg,erro){
   const d=document.createElement('div');
