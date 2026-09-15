@@ -197,15 +197,33 @@
   .rotulo-topo .nome-edit{font-family:Archivo;font-weight:700;font-size:16px;color:#f2f5f9;line-height:1.15;text-transform:capitalize}
   .contador{display:flex;align-items:center;gap:8px;margin:10px 4px 0}
 
-  /* ---------- CARIMBOS (pílula, acumulam lado a lado) ---------- */
-  .area-carimbo{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin:12px 4px 0}
-  .guia .area-carimbo{margin-top:12px}
-  .carimbo{display:inline-flex;align-items:center;justify-content:center;border:3px solid var(--cor);color:var(--cor);
-    background:#f6efe0;border-radius:12px;font-family:Archivo;font-weight:800;font-style:italic;text-transform:uppercase;
-    letter-spacing:1px;font-size:13.5px;line-height:1;padding:7px 15px;box-shadow:0 3px 7px rgba(0,0,0,.22);
-    white-space:nowrap;cursor:default}
+  /* ---------- CARIMBOS (oval de borracha, acumulam) ---------- */
+  .area-carimbo{display:flex;flex-wrap:wrap;gap:12px 14px;justify-content:center;align-items:center;margin:14px 4px 2px}
+  .guia .area-carimbo{margin-top:14px}
+  .carimbo{display:inline-flex;align-items:center;justify-content:center;text-align:center;
+    border:3px solid var(--cor);color:var(--cor);background:rgba(255,255,255,.42);border-radius:50%;
+    font-family:Archivo;font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:1.5px;
+    font-size:13px;line-height:1.05;padding:10px 20px;white-space:nowrap;cursor:default;
+    transform:rotate(var(--rot,-7deg));box-shadow:inset 0 0 0 1.6px var(--cor)}
   .item:not(.travado) .carimbo{cursor:pointer}
-  .item:not(.travado) .carimbo:hover{filter:brightness(.97)}
+  .item:not(.travado) .carimbo:hover{filter:brightness(.96)}
+  .carimbo.novo{animation:press-in .7s ease both}
+  @keyframes press-in{
+    0%{opacity:0;transform:rotate(var(--rot,-7deg)) scale(.55)}
+    46%{opacity:0;transform:rotate(var(--rot,-7deg)) scale(.55)}
+    56%{opacity:1;transform:rotate(var(--rot,-7deg)) scale(1.16)}
+    76%{transform:rotate(var(--rot,-7deg)) scale(.96)}
+    100%{opacity:1;transform:rotate(var(--rot,-7deg)) scale(1)}
+  }
+  .batida{position:absolute;left:50%;bottom:18px;z-index:14;width:78px;height:100px;pointer-events:none;
+    transform:translate(-50%,-150%);animation:bater .78s ease forwards}
+  @keyframes bater{
+    0%{transform:translate(-50%,-150%) scale(1);opacity:0}
+    18%{opacity:1}
+    44%{transform:translate(-50%,-38%) scale(1);opacity:1}
+    54%{transform:translate(-50%,-44%) scale(.98);opacity:1}
+    100%{transform:translate(-50%,-155%) scale(1);opacity:0}
+  }
   /* broche 3D com número da ordem */
   .broche{position:absolute;top:-10px;left:-10px;z-index:9;width:52px;height:52px;pointer-events:none;
     filter:drop-shadow(0 4px 5px rgba(0,0,0,.45))}
@@ -213,6 +231,12 @@
   .item.guia[draggable="true"]{cursor:grab}
   .item.guia.drop-antes{box-shadow:-4px 0 0 0 #4aa3ff}
   .item.guia.drop-depois{box-shadow:4px 0 0 0 #4aa3ff}
+  .drop-alvos{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 16px;padding:12px 14px;
+    background:#172033;border:1px dashed #3f6bd6;border-radius:12px;position:sticky;top:66px;z-index:15}
+  .drop-alvos .alvos-tit{font-weight:600;font-size:13px;color:#9db0ff;margin-right:2px}
+  .drop-alvos .alvo{display:inline-flex;align-items:center;gap:6px;background:#222a3a;border:1px solid #3a4560;
+    color:var(--tinta);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600}
+  .drop-alvos .alvo.sobre{background:#2f6bd6;border-color:#2f6bd6;color:#fff;transform:scale(1.04)}
 
   /* ---------- MODAL ---------- */
   .fundo-modal{position:fixed;inset:0;z-index:50;background:rgba(8,10,14,.6);backdrop-filter:blur(3px);
@@ -270,6 +294,7 @@
       <button id="btn-novo" class="btn">Nova mala</button>
     </div>
     <div id="barra-sel" class="barra-sel oculto"></div>
+    <div id="drop-alvos" class="drop-alvos oculto"></div>
     <div id="grade" class="grade"></div>
   </main>
 </div>
@@ -293,6 +318,7 @@ const CARIMBOS = {
   enviado_geap: {rotulo:'Enviado GEAP', cor:'#2b6cb0'},
   cancelado:    {rotulo:'Cancelado',    cor:'#c0392b'},
   escaneado:    {rotulo:'Escaneado',    cor:'#6d4bb8'},
+  remessa:      {rotulo:'Remessa Nº',   cor:'#0e7490'},
 };
 const MIN_GUIAS = 20, MAX_GUIAS = 50;
 
@@ -456,6 +482,12 @@ async function carimbarSelecionados(){
   const ids=[...estado.sel];
   if(!ids.length) return toast('Marque pelo menos um item.',true);
   const cod=await escolherCarimbo(); if(!cod) return;
+  let numRem=null;
+  if(cod==='remessa'){
+    numRem = await pedirTexto('Número da remessa','Número para carimbar em todos os selecionados:','', 'Ex.: 1234');
+    if(numRem===null || !numRem.trim()) return;
+    numRem = numRem.trim();
+  }
   const {tabela,lista}=refs(tipo);
   const pesado = (tipo==='guia' && cod==='lancado');
   const fechar = (pesado || ids.length>4) ? modalCarregando('Carimbando…',`0 de ${ids.length}`) : null;
@@ -464,7 +496,9 @@ async function carimbarSelecionados(){
     const obj=lista.find(x=>x.id===ids[i]);
     if(!obj){ continue; }
     if(tipo==='mala' && obj.bloqueada){ pulados++; if(fechar)fechar.progresso(`${i+1} de ${ids.length}`); continue; }
-    const novos=[...(Array.isArray(obj.carimbos)?obj.carimbos:[]), {t:cod, em:new Date().toISOString()}];
+    const entrada={t:cod, em:new Date().toISOString()};
+    if(cod==='remessa') entrada.n=numRem;
+    const novos=[...(Array.isArray(obj.carimbos)?obj.carimbos:[]), entrada];
     const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',obj.id);
     if(!error){ obj.carimbos=novos; ok++; }
     if(pesado && !error){
@@ -476,6 +510,85 @@ async function carimbarSelecionados(){
   if(fechar) fechar();
   sairSelecao();
   toast(`${ok} carimbado(s)${pulados?` · ${pulados} mala(s) trancada(s) puladas`:''}.`);
+}
+function escolherMala(titulo){
+  return new Promise(res=>{
+    const disp = estado.malas.filter(m=>!m.bloqueada);
+    if(!disp.length){ toast('Nenhuma mala disponível (destranque alguma).',true); return res(null); }
+    const btns = disp.map(m=>{
+      const atual = (estado.malaAtual && m.id===estado.malaAtual.id) ? ' (atual)' : '';
+      return `<button class="btn secundario" style="width:100%;text-align:left;margin-bottom:8px"
+        onclick="window.__dest('${m.id}')">${esc(m.nome)}${atual}</button>`;
+    }).join('');
+    abrirModal(`<div class="modal"><h3>${esc(titulo)}</h3><p>Escolha a mala de destino.</p>
+      <div style="max-height:52vh;overflow:auto">${btns}</div>
+      <div class="linha"><button class="btn secundario" onclick="window.__dest(null)">Cancelar</button></div></div>`);
+    window.__dest=(v)=>{ fecharModal(); delete window.__dest; res(v); };
+  });
+}
+async function escolherPastaDestino(){
+  const malaId = await escolherMala('Mover para… (1/2)');
+  if(!malaId) return null;
+  const pastas = pastasDaMala(malaId);
+  if(!pastas.length){ toast('Essa mala não tem pastas. Crie uma pasta primeiro.',true); return null; }
+  return await new Promise(res=>{
+    const btns = pastas.map(p=>`<button class="btn secundario" style="width:100%;text-align:left;margin-bottom:8px"
+      onclick="window.__dest2('${p.id}')">${esc(p.nome)}</button>`).join('');
+    abrirModal(`<div class="modal"><h3>Escolha a pasta (2/2)</h3><p>Pasta de destino.</p>
+      <div style="max-height:52vh;overflow:auto">${btns}</div>
+      <div class="linha"><button class="btn secundario" onclick="window.__dest2(null)">Cancelar</button></div></div>`);
+    window.__dest2=(v)=>{ fecharModal(); delete window.__dest2; res(v); };
+  });
+}
+async function moverSelecionados(){
+  const tipo=tipoDoView();
+  const ids=[...estado.sel];
+  if(!ids.length) return toast('Marque pelo menos um item.',true);
+  if(tipo==='mala') return;
+
+  if(tipo==='pasta'){
+    const destMala = await escolherMala('Mover pastas para…');
+    if(!destMala) return;
+    const fechar = ids.length>4 ? modalCarregando('Movendo…',`0 de ${ids.length}`) : null;
+    let ok=0;
+    for(let i=0;i<ids.length;i++){
+      const p=estado.pastas.find(x=>x.id===ids[i]); if(!p){ continue; }
+      if(await moverPastaParaMala(p, destMala)) ok++;
+      if(fechar) fechar.progresso(`${i+1} de ${ids.length}`);
+    }
+    if(fechar) fechar();
+    sairSelecao(); render();
+    toast(`${ok} pasta${ok===1?'':'s'} movida${ok===1?'':'s'}.`);
+  }else{ // guia
+    const destPasta = await escolherPastaDestino();
+    if(!destPasta) return;
+    const fechar = ids.length>4 ? modalCarregando('Movendo…',`0 de ${ids.length}`) : null;
+    let ok=0;
+    for(let i=0;i<ids.length;i++){
+      const g=estado.guias.find(x=>x.id===ids[i]); if(!g){ continue; }
+      if(await moverGuiaParaPasta(g, destPasta)) ok++;
+      if(fechar) fechar.progresso(`${i+1} de ${ids.length}`);
+    }
+    if(fechar) fechar();
+    sairSelecao(); render();
+    toast(`${ok} guia${ok===1?'':'s'} movida${ok===1?'':'s'}.`);
+  }
+}
+async function moverGuiaParaPasta(g, destPasta){
+  const pastaObj = estado.pastas.find(p=>p.id===destPasta); if(!pastaObj) return false;
+  const destMala = pastaObj.mala_id;
+  const base = estado.guias.filter(x=>x.pasta_id===destPasta).reduce((m,x)=>Math.max(m,x.ordem||0),0) + 1;
+  const {error} = await sb.from('mala_guias').update({pasta_id:destPasta, mala_id:destMala, ordem:base}).eq('id',g.id);
+  if(error){ toast('Erro ao mover: '+error.message,true); return false; }
+  g.pasta_id=destPasta; g.mala_id=destMala; g.ordem=base; return true;
+}
+async function moverPastaParaMala(p, destMala){
+  const {error} = await sb.from('mala_pastas').update({mala_id:destMala}).eq('id',p.id);
+  if(error){ toast('Erro ao mover: '+error.message,true); return false; }
+  p.mala_id=destMala;
+  const gs=estado.guias.filter(g=>g.pasta_id===p.id);
+  if(gs.length){ await sb.from('mala_guias').update({mala_id:destMala}).eq('pasta_id',p.id); gs.forEach(g=>g.mala_id=destMala); }
+  return true;
 }
 function renderBarraSel(){
   const bar=$('barra-sel'), btnSel=$('btn-sel');
@@ -490,6 +603,7 @@ function renderBarraSel(){
     <span class="cont">${n} de ${total} selecionada${n===1?'':'s'}</span>
     <button class="btn secundario" onclick="selecionarTodos()">Selecionar todos</button>
     <button class="btn" onclick="carimbarSelecionados()">Carimbar${n?` (${n})`:''}</button>
+    ${tipoDoView()!=='mala'?`<button class="btn secundario" onclick="moverSelecionados()">Mover${n?` (${n})`:''}</button>`:''}
     <button class="btn secundario" onclick="sairSelecao()">Cancelar</button>`;
 }
 
@@ -513,12 +627,19 @@ function chipContagem(n){
   const dentro = n>=MIN_GUIAS && n<=MAX_GUIAS;
   return `<span class="chip ${dentro?'ok':'fora'}">${n}/${MAX_GUIAS} guias</span>`;
 }
+function rotuloCarimbo(c){
+  const d=CARIMBOS[c && c.t]; if(!d) return '';
+  if(c.t==='remessa') return `Remessa Nº ${c.n||''}`.trim();
+  return d.rotulo;
+}
 function carimbosHTML(lista, tipo, id, travada){
   if(!Array.isArray(lista) || !lista.length) return '';
+  const rots=[-7,5,-4,6,-6,3];
   const pilulas = lista.map((c,i)=>{
     const d=CARIMBOS[c && c.t]; if(!d) return '';
+    const txt=rotuloCarimbo(c);
     const rem = travada ? '' : `onclick="removerCarimbo(event,'${tipo}','${id}',${i})" title="Clique para remover"`;
-    return `<span class="carimbo" style="--cor:${d.cor}" ${rem}>${esc(d.rotulo.toUpperCase())}</span>`;
+    return `<span class="carimbo" style="--cor:${d.cor};--rot:${rots[i%rots.length]}deg" ${rem}>${esc(txt.toUpperCase())}</span>`;
   }).join('');
   return `<div class="area-carimbo">${pilulas}</div>`;
 }
@@ -594,7 +715,7 @@ function malaCard(m){
   const n = guiasDaMala(m.id).length;
   const trav = !!m.bloqueada;
   const selMode = selAtivoPara('mala');
-  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''}">
+  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''}" data-id="${m.id}">
     ${selMode ? selChk('mala',m.id) : botaoAcoes('mala',m.id)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Mala</div>
@@ -617,11 +738,14 @@ function pastaCard(p){
   const n = guiasDaPasta(p.id).length;
   const trav = !!estado.malaAtual.bloqueada;
   const selMode = selAtivoPara('pasta');
-  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''}">
+  const dnd = (trav || selMode) ? '' :
+    `draggable="true" ondragstart="pastaDragStart(event,'${p.id}')" ondragend="pastaDragEnd(event)"`;
+  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''}" data-id="${p.id}" ${dnd}>
     ${selMode ? selChk('pasta',p.id) : (trav?'':botaoAcoes('pasta',p.id))}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
       <div class="rot">Pasta</div>
-      <div class="nome-edit" contenteditable="${trav?'false':'true'}"
+      <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false" onmousedown="event.stopPropagation()"
+           onclick="event.stopPropagation()"
            onblur="salvarNome('pasta','${p.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(p.nome)}</div>
     </div>
@@ -682,10 +806,10 @@ function brocheHTML(n){
 }
 
 /* ----- arrastar para reordenar ----- */
-let _arrastando=null;
-function guiaDragStart(ev,id){ _arrastando=id; ev.dataTransfer.effectAllowed='move';
+let _arrastando=null, _dragItem=null;
+function guiaDragStart(ev,id){ _arrastando=id; _dragItem={tipo:'guia',id}; ev.dataTransfer.effectAllowed='move';
   try{ ev.dataTransfer.setData('text/plain',id); }catch(_){}
-  ev.currentTarget.style.opacity='0.5'; }
+  ev.currentTarget.style.opacity='0.5'; mostrarAlvos(); }
 function guiaDragOver(ev,id){ if(!_arrastando) return; ev.preventDefault(); ev.dataTransfer.dropEffect='move';
   const it=ev.currentTarget, r=it.getBoundingClientRect();
   const antes=(ev.clientX-r.left)<r.width/2;
@@ -699,7 +823,48 @@ function guiaDrop(ev,id){ ev.preventDefault();
   _arrastando=null; }
 function guiaDragEnd(ev){ ev.currentTarget.style.opacity='';
   document.querySelectorAll('.drop-antes,.drop-depois').forEach(e=>e.classList.remove('drop-antes','drop-depois'));
-  _arrastando=null; }
+  _arrastando=null; _dragItem=null; esconderAlvos(); }
+
+/* pasta: arrastar para outra mala */
+function pastaDragStart(ev,id){ _dragItem={tipo:'pasta',id}; ev.dataTransfer.effectAllowed='move';
+  try{ ev.dataTransfer.setData('text/plain',id); }catch(_){}
+  ev.currentTarget.style.opacity='0.5'; mostrarAlvos(); }
+function pastaDragEnd(ev){ ev.currentTarget.style.opacity=''; _dragItem=null; esconderAlvos(); }
+
+/* barra de destinos (soltar para mover) */
+function esconderAlvos(){ const b=$('drop-alvos'); if(b){ b.classList.add('oculto'); b.innerHTML=''; } }
+function mostrarAlvos(){
+  const bar=$('drop-alvos'); if(!bar || !_dragItem) return;
+  let titulo='', chips='';
+  if(_dragItem.tipo==='guia'){
+    const irmas = pastasDaMala(estado.malaAtual.id).filter(p=>p.id!==estado.pastaAtual.id);
+    if(!irmas.length){ esconderAlvos(); return; }
+    titulo='Soltar na pasta:'; chips=irmas.map(p=>chipAlvo(p.id,p.nome)).join('');
+  }else{
+    const outras = estado.malas.filter(m=>!m.bloqueada && m.id!==(estado.malaAtual&&estado.malaAtual.id));
+    if(!outras.length){ esconderAlvos(); return; }
+    titulo='Soltar na mala:'; chips=outras.map(m=>chipAlvo(m.id,m.nome)).join('');
+  }
+  bar.innerHTML=`<span class="alvos-tit">${titulo}</span>${chips}`;
+  bar.classList.remove('oculto');
+}
+function chipAlvo(id,nome){
+  return `<span class="alvo" ondragover="alvoOver(event)" ondragleave="alvoLeave(event)" ondrop="alvoDrop(event,'${id}')">${esc(nome)}</span>`;
+}
+function alvoOver(ev){ ev.preventDefault(); ev.dataTransfer.dropEffect='move'; ev.currentTarget.classList.add('sobre'); }
+function alvoLeave(ev){ ev.currentTarget.classList.remove('sobre'); }
+async function alvoDrop(ev,destId){
+  ev.preventDefault(); ev.currentTarget.classList.remove('sobre');
+  const item=_dragItem; _dragItem=null; _arrastando=null; esconderAlvos();
+  if(!item) return;
+  if(item.tipo==='guia'){
+    const g=estado.guias.find(x=>x.id===item.id);
+    if(g && await moverGuiaParaPasta(g,destId)){ render(); toast('Guia movida.'); }
+  }else{
+    const p=estado.pastas.find(x=>x.id===item.id);
+    if(p && await moverPastaParaMala(p,destId)){ render(); toast('Pasta movida.'); }
+  }
+}
 async function reordenarGuia(dragId,targetId,antes){
   const pastaId=estado.pastaAtual.id;
   let arr=guiasDaPasta(pastaId).filter(g=>g.id!==dragId);
@@ -1059,16 +1224,42 @@ async function acaoCarimbar(tipo,id){
   if(tipo==='mala' && obj.bloqueada) return toast('Mala trancada. Destranque para carimbar.',true);
   const cod = await escolherCarimbo();
   if(!cod) return;
-  const novos = [...(Array.isArray(obj.carimbos)?obj.carimbos:[]), {t:cod, em:new Date().toISOString()}];
+  const entrada = {t:cod, em:new Date().toISOString()};
+  if(cod==='remessa'){
+    const num = await pedirTexto('Número da remessa','Digite o número da remessa para carimbar:','', 'Ex.: 1234');
+    if(num===null || !num.trim()) return;
+    entrada.n = num.trim();
+  }
+  const novos = [...(Array.isArray(obj.carimbos)?obj.carimbos:[]), entrada];
   const {error}=await sb.from(tabela).update({carimbos:novos}).eq('id',id);
   if(error) return toast('Erro ao carimbar: '+error.message,true);
-  obj.carimbos=novos; render();
+  obj.carimbos=novos; render(); animarCarimbo(id);
   if(tipo==='guia' && cod==='lancado'){
     const fechar=modalCarregando('Lançando guia…','Lendo os exames e recortando a folha.');
     try{ await processarGuiaLancada(obj, msg=>fechar.progresso(msg)); }
     catch(err){ console.warn(err); toast('Carimbei, mas não consegui ler os exames: '+(err.message||''),true); }
     fechar(); render();
   }
+}
+const SVG_PRESSER=`<svg viewBox="0 0 80 104" width="78" height="100" aria-hidden="true">
+  <ellipse cx="40" cy="98" rx="26" ry="6" fill="rgba(0,0,0,.18)"/>
+  <rect x="31" y="16" width="18" height="30" rx="9" fill="#dfa04a"/>
+  <circle cx="40" cy="17" r="11" fill="#e9ae57"/>
+  <circle cx="40" cy="17" r="11" fill="none" stroke="#b9863a" stroke-width="1.5"/>
+  <rect x="26" y="44" width="28" height="9" rx="3" fill="#8a5a24"/>
+  <path d="M19 68 Q40 57 61 68 L61 80 Q40 92 19 80 Z" fill="#b5701f"/>
+  <rect x="17" y="78" width="46" height="10" rx="3" fill="#5c3a15"/>
+</svg>`;
+function animarCarimbo(id){
+  const item=document.querySelector(`.item[data-id="${id}"]`);
+  if(!item) return;
+  const pills=item.querySelectorAll('.carimbo');
+  if(pills.length){ const last=pills[pills.length-1]; last.classList.add('novo');
+    last.addEventListener('animationend',()=>last.classList.remove('novo'),{once:true}); }
+  const ov=document.createElement('div'); ov.className='batida'; ov.innerHTML=SVG_PRESSER;
+  item.appendChild(ov);
+  ov.addEventListener('animationend',()=>ov.remove(),{once:true});
+  setTimeout(()=>{ if(ov.parentNode) ov.remove(); }, 1200);
 }
 async function removerCarimbo(ev,tipo,id,idx){
   ev.stopPropagation();
@@ -1216,8 +1407,9 @@ function toast(msg,erro){
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,aoBuscar,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
-  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,
-  guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd});
+  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,
+  guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd,
+  pastaDragStart,pastaDragEnd,alvoOver,alvoLeave,alvoDrop});
 </script>
 </body>
 </html>
