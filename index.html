@@ -237,6 +237,11 @@
   .drop-alvos .alvo{display:inline-flex;align-items:center;gap:6px;background:#222a3a;border:1px solid #3a4560;
     color:var(--tinta);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600}
   .drop-alvos .alvo.sobre{background:#2f6bd6;border-color:#2f6bd6;color:#fff;transform:scale(1.04)}
+  .dropzone{position:fixed;inset:0;z-index:60;background:rgba(12,16,24,.72);backdrop-filter:blur(2px);
+    display:flex;align-items:center;justify-content:center;padding:26px;pointer-events:none}
+  .dropzone .dz-box{border:3px dashed #6ea0ff;border-radius:18px;background:rgba(31,45,74,.65);color:#dce7ff;
+    font-family:Archivo;font-weight:700;font-size:20px;text-align:center;padding:48px 40px;max-width:520px;line-height:1.35}
+  .dropzone .dz-ic{font-size:38px;margin-bottom:10px}
 
   /* ---------- MODAL ---------- */
   .fundo-modal{position:fixed;inset:0;z-index:50;background:rgba(8,10,14,.6);backdrop-filter:blur(3px);
@@ -300,6 +305,7 @@
 </div>
 
 <div id="camada-modal"></div>
+<div id="dropzone" class="dropzone oculto"><div class="dz-box"><div class="dz-ic">⬇</div>Solte aqui os arquivos ou a pasta para enviar</div></div>
 <input id="file-guia" type="file" accept="application/pdf,image/*" multiple class="oculto">
 <input id="file-pasta" type="file" webkitdirectory multiple class="oculto">
 
@@ -687,7 +693,7 @@ function renderConteudo(){
     const numero=new Map(gsFull.map((g,i)=>[g.id,i+1]));
     const gs=filtrarBusca(gsFull,'guia');
     grade.innerHTML = gs.length? gs.map(g=>guiaCard(g, numero.get(g.id))).join('')
-      : `<div class="vazio">${gsFull.length? `Nenhuma guia encontrada para “${esc(estado.busca)}”.` : 'Nenhuma guia nesta pasta. Toque em “Adicionar guias” e envie o PDF ou a foto.'}</div>`;
+      : `<div class="vazio">${gsFull.length? `Nenhuma guia encontrada para “${esc(estado.busca)}”.` : 'Nenhuma guia nesta pasta. Toque em “Adicionar guias”, ou arraste os arquivos/uma pasta do computador para cá.'}</div>`;
   }
 }
 
@@ -1000,6 +1006,60 @@ $('file-pasta').addEventListener('change', async e=>{
   if(!files.length){ toast('Nenhum PDF ou imagem encontrado nessa pasta.',true); return; }
   await adicionarVarias(files);
 });
+
+/* ---- arrastar arquivos/pasta do PC para dentro do sistema ---- */
+function ehArrastoDeArquivos(e){ return e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes('Files'); }
+function podeSoltarAqui(){ return estado.view==='pasta' && estado.pastaAtual && !(estado.malaAtual && estado.malaAtual.bloqueada); }
+function mostrarDropzone(){ $('dropzone').classList.remove('oculto'); }
+function esconderDropzone(){ $('dropzone').classList.add('oculto'); }
+let _dzDepth=0;
+window.addEventListener('dragenter', e=>{
+  if(!ehArrastoDeArquivos(e) || !podeSoltarAqui()) return;
+  e.preventDefault(); _dzDepth++; mostrarDropzone();
+});
+window.addEventListener('dragover', e=>{
+  if(!ehArrastoDeArquivos(e) || !podeSoltarAqui()) return;
+  e.preventDefault(); e.dataTransfer.dropEffect='copy';
+});
+window.addEventListener('dragleave', e=>{
+  if(!ehArrastoDeArquivos(e)) return;
+  _dzDepth--; if(_dzDepth<=0){ _dzDepth=0; esconderDropzone(); }
+});
+window.addEventListener('drop', async e=>{
+  if(!ehArrastoDeArquivos(e)) return;
+  _dzDepth=0; esconderDropzone();
+  if(!podeSoltarAqui()){ e.preventDefault(); toast('Abra uma pasta para poder soltar as guias dentro dela.',true); return; }
+  e.preventDefault();
+  const arquivos = await coletarArquivos(e.dataTransfer);
+  const validos = arquivos.filter(ehGuiaArquivo);
+  if(!validos.length){ toast('Nenhum PDF ou imagem no que você soltou.',true); return; }
+  if(validos.length===1) return adicionarUma(validos[0]);
+  await adicionarVarias(validos);
+});
+async function coletarArquivos(dt){
+  const items = dt.items ? Array.from(dt.items) : [];
+  const entries = items.map(it=> it.webkitGetAsEntry ? it.webkitGetAsEntry() : null).filter(Boolean);
+  if(entries.length){
+    const out=[];
+    for(const en of entries){ await lerEntry(en, out); }
+    if(out.length) return out;
+  }
+  return Array.from(dt.files||[]);
+}
+function lerEntry(entry, out){
+  return new Promise(res=>{
+    if(entry.isFile){ entry.file(f=>{ out.push(f); res(); }, ()=>res()); }
+    else if(entry.isDirectory){
+      const rd=entry.createReader();
+      const lerLote=()=>rd.readEntries(async ents=>{
+        if(!ents.length){ res(); return; }
+        for(const en of ents){ await lerEntry(en, out); }
+        lerLote();
+      }, ()=>res());
+      lerLote();
+    } else res();
+  });
+}
 
 /* ---- OCR ---- */
 let libsProntas=false;
