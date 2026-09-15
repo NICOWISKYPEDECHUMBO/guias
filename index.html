@@ -87,13 +87,15 @@
 
   /* etiqueta de observação (pendurada) */
   .etiqueta-obs{position:absolute;top:34px;right:-3px;z-index:9;cursor:pointer;display:flex;flex-direction:column;
-    align-items:center;transform:rotate(6deg);transform-origin:top center;max-width:120px}
+    align-items:center;transform:rotate(6deg);transform-origin:top center;max-width:170px}
   .etiqueta-obs .fio{width:13px;height:13px;border:2px solid #b7a06b;border-bottom:none;border-radius:50% 50% 0 0;
     margin-bottom:-5px;transform:rotate(18deg)}
-  .etiqueta-obs .corpo-obs{background:#1e9bf0;color:#fff;border:2px solid #0f6fbf;border-radius:9px;padding:5px 9px;
-    font-size:11px;font-weight:700;line-height:1.15;box-shadow:0 5px 12px rgba(0,0,0,.4);max-width:120px;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .etiqueta-obs.vazia .corpo-obs{background:#2b3340;color:#9aa3b0;border-color:#454b56;font-weight:600}
+  .etiqueta-obs .corpo-obs{background:#ff2d95;color:#fff;border:2px solid #ff8ec6;border-radius:9px;padding:6px 10px;
+    font-size:11px;font-weight:800;line-height:1.25;max-width:170px;white-space:normal;word-break:break-word;
+    text-align:center;text-shadow:0 0 4px rgba(255,255,255,.5);
+    box-shadow:0 0 14px rgba(255,45,149,.85),0 0 26px rgba(255,45,149,.45),0 5px 12px rgba(0,0,0,.4)}
+  .etiqueta-obs.vazia .corpo-obs{background:#2b3340;color:#9aa3b0;border-color:#454b56;font-weight:600;
+    white-space:nowrap;text-shadow:none;box-shadow:0 4px 10px rgba(0,0,0,.4)}
 
   /* letreiro neon */
   .neon{display:inline-flex;align-items:center;font-family:Archivo;font-weight:800;letter-spacing:1px;
@@ -441,11 +443,46 @@ sb.auth.onAuthStateChange((_ev,session)=>{
     estado.user = session.user;
     if(!logado){ logado=true; entrarNoApp(); }
   }else{
-    logado=false; estado.user=null;
+    logado=false; estado.user=null; desligarRealtime();
     $('tela-app').classList.add('oculto');
     $('tela-login').style.display='flex';
   }
 });
+
+// carrega direto ao abrir (sem precisar de F5)
+(async ()=>{
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    if(session && session.user && !logado){ estado.user=session.user; logado=true; entrarNoApp(); }
+  }catch(e){ console.warn(e); }
+})();
+
+// mantém atualizado sozinho: ao voltar pra aba, ao focar, e de tempos em tempos
+let _ultRecarga=0;
+function ocupado(){
+  if($('camada-modal').innerHTML.trim()) return true;              // modal aberto
+  if(_dragItem || _arrastando) return true;                        // arrastando
+  const a=document.activeElement;
+  if(a && (a.isContentEditable || a.tagName==='INPUT' || a.tagName==='TEXTAREA')) return true; // editando
+  return false;
+}
+async function recarregar(force){
+  if(!estado.user || !logado) return;
+  const agora=Date.now();
+  if(!force && (agora-_ultRecarga < 2500)) return;
+  if(!force && ocupado()) return;
+  _ultRecarga=agora;
+  const malaId=estado.malaAtual&&estado.malaAtual.id, pastaId=estado.pastaAtual&&estado.pastaAtual.id;
+  await carregarTudo();
+  if(malaId){ estado.malaAtual=estado.malas.find(m=>m.id===malaId)||null; }
+  if(pastaId){ estado.pastaAtual=estado.pastas.find(p=>p.id===pastaId)||null; }
+  if(estado.view==='pasta' && !estado.pastaAtual) estado.view = estado.malaAtual?'mala':'mesa';
+  if(estado.view==='mala' && !estado.malaAtual) estado.view='mesa';
+  render();
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') recarregar(); });
+window.addEventListener('focus', ()=> recarregar());
+setInterval(()=>{ if(document.visibilityState==='visible') recarregar(); }, 30000);
 
 async function entrarNoApp(){
   $('tela-login').style.display='none';
@@ -453,7 +490,23 @@ async function entrarNoApp(){
   $('email-usuario').textContent = estado.user.email;
   await carregarTudo();
   irMesa();
+  ligarRealtime();
 }
+
+// ===== Realtime (ao vivo) =====
+let _canalRT=null, _rtTimer=null;
+function recarregarRT(){ clearTimeout(_rtTimer); _rtTimer=setTimeout(()=>recarregar(), 700); }
+function ligarRealtime(){
+  if(_canalRT) return;
+  try{
+    _canalRT = sb.channel('malas-rt')
+      .on('postgres_changes', {event:'*', schema:'public', table:'malas'}, recarregarRT)
+      .on('postgres_changes', {event:'*', schema:'public', table:'mala_pastas'}, recarregarRT)
+      .on('postgres_changes', {event:'*', schema:'public', table:'mala_guias'}, recarregarRT)
+      .subscribe();
+  }catch(e){ console.warn('realtime', e); }
+}
+function desligarRealtime(){ if(_canalRT){ try{ sb.removeChannel(_canalRT); }catch(_){} _canalRT=null; } }
 
 /* ================= DADOS ================= */
 async function carregarTudo(){
