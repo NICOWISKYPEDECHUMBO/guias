@@ -161,32 +161,39 @@
   .cadeado{position:absolute;top:8px;left:8px;z-index:6;background:rgba(0,0,0,.5);color:#ffd772;border-radius:8px;
     width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:15px}
 
-  /* ---------- MALA (maleta de couro preta) ---------- */
+  /* ---------- MALA (maleta Dedica Saúde preta + dourado) ---------- */
   .mala{background:none;border:none;padding:0;width:100%;text-align:left}
   .mala .corpo{
-    position:relative;border-radius:16px;padding:16px;min-height:150px;color:#fff;overflow:visible;
-    border:1px solid #050506;
+    position:relative;border-radius:16px;padding:16px;min-height:190px;color:#fff;overflow:visible;
+    border:2px solid #b8912e;
     background:
-      radial-gradient(120% 80% at 30% 8%, #43474e 0%, #23262c 46%, #101215 100%);
-    box-shadow:inset 0 2px 0 rgba(255,255,255,.08), inset 0 -18px 30px rgba(0,0,0,.5), 0 18px 34px rgba(0,0,0,.5);
+      radial-gradient(120% 80% at 30% 8%, #2c2f35 0%, #17191d 46%, #0a0b0d 100%);
+    box-shadow:inset 0 0 0 3px #241d0c, inset 0 0 0 5px #caa53d,
+      inset 0 2px 0 rgba(255,255,255,.06), 0 18px 34px rgba(0,0,0,.55);
   }
-  .mala .corpo::before{ /* costura */
-    content:"";position:absolute;inset:9px;border-radius:11px;border:2px dashed rgba(255,255,255,.14);pointer-events:none}
-  .mala .corpo::after{ /* vinco tampa/base */
-    content:"";position:absolute;left:10px;right:10px;top:58%;height:3px;pointer-events:none;
-    background:linear-gradient(90deg,transparent,rgba(0,0,0,.85),transparent);box-shadow:0 1px 0 rgba(255,255,255,.05)}
-  .mala .alca{position:absolute;left:50%;top:-11px;transform:translateX(-50%);width:78px;height:20px;z-index:3;
-    border:6px solid #0b0c0e;border-bottom:none;border-radius:16px 16px 0 0;background:linear-gradient(#33373d,#141619)}
-  .mala .canto{position:absolute;width:26px;height:26px;z-index:3;background:radial-gradient(circle at 35% 30%,#3a3d42,#0a0b0d 70%)}
-  .mala .canto.tl{top:0;left:0;border-radius:16px 0 46px 0}
-  .mala .canto.tr{top:0;right:0;border-radius:0 16px 0 46px}
-  .mala .canto.bl{bottom:0;left:0;border-radius:0 46px 0 16px}
-  .mala .canto.br{bottom:0;right:0;border-radius:46px 0 16px 0}
-  .mala .latch{position:absolute;top:56%;transform:translateY(-50%);z-index:3;width:38px;height:24px;border-radius:5px;
-    background:linear-gradient(#f2f5f8,#a7adb6);border:1px solid #767c85;box-shadow:inset 0 1px 0 #fff,0 2px 4px rgba(0,0,0,.5);
+  .mala .face{position:absolute;inset:16px 12px 12px;z-index:1;pointer-events:none}
+  .mala .face svg{width:100%;height:100%;display:block}
+  .mala .alca{position:absolute;left:50%;top:-12px;transform:translateX(-50%);width:82px;height:20px;z-index:3;
+    border:6px solid #0b0c0e;border-bottom:none;border-radius:16px 16px 0 0;background:linear-gradient(#33373d,#141619);
+    box-shadow:0 0 0 2px #caa53d}
+  .mala .canto{position:absolute;width:26px;height:26px;z-index:3;
+    background:radial-gradient(circle at 35% 30%,#f6e39a,#b8860b 62%,#7a5c18 100%);border:1px solid #6b5115}
+  .mala .canto.tl{top:0;left:0;border-radius:15px 0 46px 0}
+  .mala .canto.tr{top:0;right:0;border-radius:0 15px 0 46px}
+  .mala .canto.bl{bottom:0;left:0;border-radius:0 46px 0 15px}
+  .mala .canto.br{bottom:0;right:0;border-radius:46px 0 15px 0}
+  .mala .latch{position:absolute;top:58%;transform:translateY(-50%);z-index:3;width:34px;height:22px;border-radius:4px;
+    background:linear-gradient(#f6e39a,#b8860b);border:1px solid #7a5c18;box-shadow:inset 0 1px 0 #fff5cf,0 2px 4px rgba(0,0,0,.5);
     display:flex;gap:3px;align-items:center;justify-content:center}
-  .mala .latch.e{left:20px}.mala .latch.d{right:20px}
-  .mala .latch i{width:7px;height:13px;border-radius:2px;background:linear-gradient(#3c4147,#161a1e)}
+  .mala .latch.e{left:16px}.mala .latch.d{right:16px}
+  .mala .latch i{width:6px;height:12px;border-radius:2px;background:linear-gradient(#3c3413,#161200)}
+  .mala .trava{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;display:flex;gap:3px;
+    background:linear-gradient(#f0d879,#a9822c);border:2px solid #7a5c18;border-radius:6px;padding:4px 6px;
+    box-shadow:0 2px 6px rgba(0,0,0,.55)}
+  .mala .trava i{display:flex;align-items:center;justify-content:center;width:14px;height:20px;background:#0d0d0d;
+    color:#f4f4f4;border-radius:3px;font-family:Archivo;font-weight:700;font-size:13px;font-style:normal;
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.85)}
+  .mala .area-carimbo.sobre-mala{position:absolute;left:8px;right:8px;bottom:14px;margin:0;z-index:5}
   .placa{position:relative;z-index:4;margin:0 8px;background:linear-gradient(#3a3d43,#212327);
     color:#eef1f5;border-radius:8px;padding:9px 12px;min-height:50px;border:1px solid #0c0d10;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 8px rgba(0,0,0,.4)}
@@ -763,7 +770,7 @@ function rotuloCarimbo(c){
   if(c.t==='remessa') return `Remessa Nº ${c.n||''}`.trim();
   return d.rotulo;
 }
-function carimbosHTML(lista, tipo, id, travada){
+function carimbosHTML(lista, tipo, id, travada, cls){
   if(!Array.isArray(lista) || !lista.length) return '';
   const rots=[-7,5,-4,6,-6,3];
   const pilulas = lista.map((c,i)=>{
@@ -772,7 +779,7 @@ function carimbosHTML(lista, tipo, id, travada){
     const rem = travada ? '' : `onclick="removerCarimbo(event,'${tipo}','${id}',${i})" title="Clique para remover"`;
     return `<span class="carimbo" style="--cor:${d.cor};--rot:${rots[i%rots.length]}deg" ${rem}>${esc(txt.toUpperCase())}</span>`;
   }).join('');
-  return `<div class="area-carimbo">${pilulas}</div>`;
+  return `<div class="${cls||'area-carimbo'}">${pilulas}</div>`;
 }
 function botaoAcoes(tipo,id){
   return `<button class="acoes-btn" onclick="abrirMenu(event,'${tipo}','${id}')">⋯</button>`;
@@ -870,6 +877,24 @@ function neonHTML(tipo,id){
   return `<span class="neon ok" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">Tudo lançado</span>`;
 }
 
+const SVG_MALA_FACE = `<svg viewBox="0 0 420 210" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  <defs><linearGradient id="ouroM" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f7e79b"/><stop offset="45%" stop-color="#d4af37"/><stop offset="100%" stop-color="#9c7a1e"/>
+  </linearGradient></defs>
+  <path d="M36 122 H104 l10 -30 l12 54 l12 -70 l12 46 H248" fill="none" stroke="url(#ouroM)" stroke-width="3" opacity="0.85"/>
+  <g fill="url(#ouroM)" stroke="url(#ouroM)">
+    <path d="M120 58 q -32 -16 -46 -3 q 22 -1 44 13 z" stroke="none"/>
+    <path d="M120 58 q 32 -16 46 -3 q -22 -1 -44 13 z" stroke="none"/>
+    <circle cx="120" cy="52" r="7" stroke="none"/>
+    <rect x="116" y="56" width="8" height="116" rx="4" stroke="none"/>
+    <path d="M120 72 C150 84 90 100 120 112 C150 124 90 140 120 152" fill="none" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 72 C90 84 150 100 120 112 C90 124 150 140 120 152" fill="none" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <line x1="168" y1="120" x2="352" y2="120" stroke="url(#ouroM)" stroke-width="2" opacity="0.8"/>
+  <text x="260" y="150" text-anchor="middle" font-family="Archivo, serif" font-weight="800" font-size="30" letter-spacing="2" fill="url(#ouroM)">DEDICA SAÚDE</text>
+  <text x="396" y="192" text-anchor="end" font-family="Inter, sans-serif" font-weight="600" font-size="10" letter-spacing="1" fill="url(#ouroM)" opacity="0.85">SAÚDE SEMPRE EM PRIMEIRO LUGAR</text>
+</svg>`;
+
 /* ----- cards ----- */
 function malaCard(m){
   const n = guiasDaMala(m.id).length;
@@ -879,6 +904,7 @@ function malaCard(m){
     `draggable="true" ondragstart="malaDragStart(event,'${m.id}')" ondragover="malaDragOver(event,'${m.id}')"
      ondragleave="malaDragLeave(event)" ondrop="malaDrop(event,'${m.id}')" ondragend="malaDragEnd(event)"`;
   const corSty = m.cor ? `style="--cor-item:${m.cor}"` : '';
+  const dials = String(Math.min(n,999)).padStart(3,'0').split('').map(d=>`<i>${d}</i>`).join('');
   return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''} ${m.cor?'temcor':''}" data-id="${m.id}" ${corSty} ${dnd}>
     ${selMode ? selChk('mala',m.id) : botaoAcoes('mala',m.id)}
     ${etiquetaObsHTML('mala',m.id,m.obs)}
@@ -892,12 +918,14 @@ function malaCard(m){
     <div class="corpo" onclick="abrirMala('${m.id}')" style="cursor:pointer">
       <span class="alca"></span>
       <span class="canto tl"></span><span class="canto tr"></span><span class="canto bl"></span><span class="canto br"></span>
+      <span class="trava">${dials}</span>
       <span class="latch e"><i></i><i></i><i></i></span>
       <span class="latch d"><i></i><i></i><i></i></span>
+      <div class="face">${SVG_MALA_FACE}</div>
+      ${carimbosHTML(m.carimbos, 'mala', m.id, trav, 'area-carimbo sobre-mala')}
       ${m.bloqueada?`<span class="cadeado" title="Trancada">🔒</span>`:''}
     </div>
     <div class="contador">${chipContagem(n)} ${neonHTML('mala',m.id)}</div>
-    ${carimbosHTML(m.carimbos, 'mala', m.id, trav)}
   </div>`;
 }
 function pastaCard(p){
