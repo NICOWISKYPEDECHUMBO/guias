@@ -922,10 +922,10 @@ function malaCard(m){
       <span class="latch e"><i></i><i></i><i></i></span>
       <span class="latch d"><i></i><i></i><i></i></span>
       <div class="face">${SVG_MALA_FACE}</div>
-      ${carimbosHTML(m.carimbos, 'mala', m.id, trav, 'area-carimbo sobre-mala')}
       ${m.bloqueada?`<span class="cadeado" title="Trancada">🔒</span>`:''}
     </div>
     <div class="contador">${chipContagem(n)} ${neonHTML('mala',m.id)}</div>
+    ${carimbosHTML(m.carimbos, 'mala', m.id, trav)}
   </div>`;
 }
 function pastaCard(p){
