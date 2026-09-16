@@ -473,7 +473,8 @@ async function recarregar(force){
   if(!force && ocupado()) return;
   _ultRecarga=agora;
   const malaId=estado.malaAtual&&estado.malaAtual.id, pastaId=estado.pastaAtual&&estado.pastaAtual.id;
-  await carregarTudo();
+  const ok = await carregarTudo();
+  if(!ok) return;                                   // falhou? mantém o que está na tela
   if(malaId){ estado.malaAtual=estado.malas.find(m=>m.id===malaId)||null; }
   if(pastaId){ estado.pastaAtual=estado.pastas.find(p=>p.id===pastaId)||null; }
   if(estado.view==='pasta' && !estado.pastaAtual) estado.view = estado.malaAtual?'mala':'mesa';
@@ -509,13 +510,23 @@ function ligarRealtime(){
 function desligarRealtime(){ if(_canalRT){ try{ sb.removeChannel(_canalRT); }catch(_){} _canalRT=null; } }
 
 /* ================= DADOS ================= */
-async function carregarTudo(){
+async function buscarTudo(){
   const [m,p,g] = await Promise.all([
     sb.from('malas').select('*').order('created_at'),
     sb.from('mala_pastas').select('*').order('created_at'),
     sb.from('mala_guias').select('id,mala_id,pasta_id,nome,carimbos,ordem,meta,arquivo_path,created_at,obs').order('created_at'),
   ]);
+  if(m.error || p.error || g.error) return false;   // não apaga a tela numa falha
   estado.malas = m.data||[]; estado.pastas = p.data||[]; estado.guias = g.data||[];
+  return true;
+}
+async function carregarTudo(){
+  let ok = await buscarTudo();
+  if(!ok){                                          // sessão pode ter esfriado: renova e tenta 1x
+    try{ await sb.auth.refreshSession(); }catch(_){}
+    ok = await buscarTudo();
+  }
+  return ok;
 }
 const ordenar = arr => arr.slice().sort((a,b)=>((a.ordem??1e9)-(b.ordem??1e9)) || ((a.created_at||'')<(b.created_at||'')?-1:1));
 const malasOrd = () => ordenar(estado.malas);
