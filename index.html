@@ -465,8 +465,9 @@ sb.auth.onAuthStateChange((_ev,session)=>{
 })();
 
 // mantém atualizado sozinho: ao voltar pra aba, ao focar, e de tempos em tempos
-let _ultRecarga=0;
+let _ultRecarga=0, _uploading=false;
 function ocupado(){
+  if(_uploading) return true;                                     // subindo guias
   if($('camada-modal').innerHTML.trim()) return true;              // modal aberto
   if(_dragItem || _arrastando) return true;                        // arrastando
   const a=document.activeElement;
@@ -1271,13 +1272,16 @@ function ehGuiaArquivo(f){
 
 function nomeDoArquivo(fn){ return (fn||'Guia').replace(/\.[^.]+$/,'').replace(/\s+/g,' ').trim() || 'Guia'; }
 
-async function salvarGuia(file, nome, meta){
+async function salvarGuia(file, nome, meta, ordemFixa){
   const uid = estado.user.id;
   const gid = crypto.randomUUID();
   const ext = (file.name.split('.').pop()||'bin').toLowerCase();
   const path = `${uid}/${estado.malaAtual.id}/${estado.pastaAtual.id}/${gid}/arquivo.${ext}`;
-  const irmas = estado.guias.filter(g=>g.pasta_id===estado.pastaAtual.id);
-  const ordem = irmas.reduce((m,g)=>Math.max(m, g.ordem||0), 0) + 1;
+  let ordem = ordemFixa;
+  if(ordem===undefined){
+    const irmas = estado.guias.filter(g=>g.pasta_id===estado.pastaAtual.id);
+    ordem = irmas.reduce((m,g)=>Math.max(m, g.ordem||0), 0) + 1;
+  }
   const up = await sb.storage.from(BUCKET).upload(path, file, {contentType:file.type, upsert:false});
   if(up.error) throw up.error;
   const {data,error} = await sb.from('mala_guias').insert({
@@ -1303,21 +1307,41 @@ async function adicionarUma(file){
   catch(err){ fechar2(); toast('Não deu para guardar: '+err.message,true); }
 }
 
+let _ordemUpload='nomedata';
+function escolherOrdemUpload(){
+  return Promise.resolve(_ordemUpload);
+}
+function dataDoNome(nome){
+  const m=(nome||'').match(/(\d{1,2})[._/\-](\d{1,2})[._/\-](\d{2,4})/);
+  if(!m) return Infinity;
+  let d=+m[1], mo=+m[2], y=+m[3]; if(y<100) y+=2000;
+  return y*10000 + mo*100 + d;
+}
 async function adicionarVarias(files){
-  // mantém a ordem da pasta/upload (ordenação natural por nome: 01, 02, ... 10)
-  files = files.slice().sort((a,b)=>
-    (a.webkitRelativePath||a.name||'').localeCompare((b.webkitRelativePath||b.name||''), 'pt', {numeric:true, sensitivity:'base'}));
+  const modo = await escolherOrdemUpload();
+  files = files.map((f,i)=>({f,i}));   // guarda a ordem original pra desempate estável
+  if(modo==='nomedata') files.sort((a,b)=> (dataDoNome(a.f.name)-dataDoNome(b.f.name)) || (a.i-b.i));
+  else if(modo==='nome') files.sort((a,b)=>
+    (a.f.webkitRelativePath||a.f.name||'').localeCompare((b.f.webkitRelativePath||b.f.name||''), 'pt', {numeric:true, sensitivity:'base'}) || (a.i-b.i));
+  else if(modo==='data') files.sort((a,b)=> ((a.f.lastModified||0)-(b.f.lastModified||0)) || (a.i-b.i));
+  files = files.map(x=>x.f);
+  // 'como' → mantém a ordem que o navegador entregou
+  _uploading = true;
+  const pastaId = estado.pastaAtual.id;
+  let base = estado.guias.filter(g=>g.pasta_id===pastaId).reduce((m,g)=>Math.max(m, g.ordem||0), 0);
   const fechar = modalCarregando('Enviando guias…', `0 de ${files.length}`);
   let ok=0, falhas=0;
   for(let i=0;i<files.length;i++){
     const file=files[i];
     fechar.progresso(`${i} de ${files.length}`);
     try{
-      await salvarGuia(file, nomeDoArquivo(file.name), {});   // nome = nome COMPLETO do arquivo
+      base += 1;
+      await salvarGuia(file, nomeDoArquivo(file.name), {}, base);   // nome = nome COMPLETO do arquivo, ordem fixa
       ok++;
     }catch(err){ console.warn('salvar', file.name, err); falhas++; }
     fechar.progresso(`${i+1} de ${files.length}`);
   }
+  _uploading = false;
   fechar(); render();
   toast(`${ok} guia${ok===1?'':'s'} adicionada${ok===1?'':'s'}${falhas?` · ${falhas} com erro`:''}.`, falhas>0);
 }
