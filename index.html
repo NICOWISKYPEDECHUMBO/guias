@@ -742,7 +742,33 @@ function renderBarraSel(){
     <button class="btn secundario" onclick="selecionarTodos()">Selecionar todos</button>
     <button class="btn" onclick="carimbarSelecionados()">Carimbar${n?` (${n})`:''}</button>
     ${tipoDoView()!=='mala'?`<button class="btn secundario" onclick="moverSelecionados()">Mover${n?` (${n})`:''}</button>`:''}
+    <button class="btn perigo" onclick="excluirSelecionados()">Excluir${n?` (${n})`:''}</button>
     <button class="btn secundario" onclick="sairSelecao()">Cancelar</button>`;
+}
+async function excluirSelecionados(){
+  const tipo=tipoDoView();
+  const ids=[...estado.sel];
+  if(!ids.length) return toast('Marque pelo menos um item.',true);
+  const nomes={mala:'as malas selecionadas (e tudo dentro)',pasta:'as pastas selecionadas (e as guias dentro)',guia:'as guias selecionadas'};
+  const ok=await pedirConfirma('Excluir', `Excluir ${ids.length} item(ns) — ${nomes[tipo]}? Não dá para desfazer.`);
+  if(!ok) return;
+  const {tabela}=refs(tipo);
+  const fechar = ids.length>4 ? modalCarregando('Excluindo…',`0 de ${ids.length}`) : null;
+  let feito=0;
+  for(let i=0;i<ids.length;i++){
+    const id=ids[i];
+    if(tipo==='guia'){ const g=estado.guias.find(x=>x.id===id); if(g&&g.arquivo_path){ try{ await sb.storage.from(BUCKET).remove([g.arquivo_path]); }catch(_){} } }
+    const {error}=await sb.from(tabela).delete().eq('id',id);
+    if(!error) feito++;
+    if(fechar) fechar.progresso(`${i+1} de ${ids.length}`);
+  }
+  if(fechar) fechar();
+  await carregarTudo();
+  estado.modoSel=false; estado.sel.clear();
+  if(estado.malaAtual && !estado.malas.find(m=>m.id===estado.malaAtual.id)){ irMesa(); }
+  else if(estado.pastaAtual && !estado.pastas.find(p=>p.id===estado.pastaAtual.id)){ estado.view = estado.malaAtual?'mala':'mesa'; estado.pastaAtual=null; render(); }
+  else render();
+  toast(`${feito} excluído(s).`);
 }
 
 /* ================= RENDER ================= */
@@ -1243,7 +1269,7 @@ function ehGuiaArquivo(f){
   return f.type==='application/pdf' || /^image\//.test(f.type) || /\.(pdf|png|jpe?g|webp)$/i.test(f.name);
 }
 
-function nomeDoArquivo(fn){ return (fn||'Guia').replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim() || 'Guia'; }
+function nomeDoArquivo(fn){ return (fn||'Guia').replace(/\.[^.]+$/,'').replace(/\s+/g,' ').trim() || 'Guia'; }
 
 async function salvarGuia(file, nome, meta){
   const uid = estado.user.id;
@@ -1278,16 +1304,16 @@ async function adicionarUma(file){
 }
 
 async function adicionarVarias(files){
+  // mantém a ordem da pasta/upload (ordenação natural por nome: 01, 02, ... 10)
+  files = files.slice().sort((a,b)=>
+    (a.webkitRelativePath||a.name||'').localeCompare((b.webkitRelativePath||b.name||''), 'pt', {numeric:true, sensitivity:'base'}));
   const fechar = modalCarregando('Enviando guias…', `0 de ${files.length}`);
   let ok=0, falhas=0;
   for(let i=0;i<files.length;i++){
     const file=files[i];
-    fechar.progresso(`${i} de ${files.length} — lendo ${file.name}`);
-    let r={nome:'',meta:{}};
-    try{ r = await lerGuiaOCR(file, msg=>fechar.progresso(`${i} de ${files.length} — ${msg}`)); }
-    catch(err){ console.warn('OCR', file.name, err); }
+    fechar.progresso(`${i} de ${files.length}`);
     try{
-      await salvarGuia(file, r.nome || nomeDoArquivo(file.name), r.meta||{});
+      await salvarGuia(file, nomeDoArquivo(file.name), {});   // nome = nome COMPLETO do arquivo
       ok++;
     }catch(err){ console.warn('salvar', file.name, err); falhas++; }
     fechar.progresso(`${i+1} de ${files.length}`);
@@ -1805,7 +1831,7 @@ function toast(msg,erro){
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,aoBuscar,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
-  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,
+  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,
   guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd,
   pastaDragStart,pastaDragEnd,pastaDragOver,pastaDragLeave,pastaDrop,
   malaDragStart,malaDragOver,malaDragLeave,malaDrop,malaDragEnd,
