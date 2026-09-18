@@ -773,7 +773,7 @@ async function excluirSelecionados(){
 }
 
 /* ================= RENDER ================= */
-function render(){ fecharMenus(); renderCrumbs(); renderConteudo(); renderBarraSel(); renderBusca(); }
+function render(){ fecharMenus(); renderCrumbs(); renderConteudo(); renderBarraSel(); renderBusca(); if(!_dragItem) esconderAlvos(); }
 
 function renderCrumbs(){
   const c=$('crumbs'); let h=`<button class="c" onclick="irMesa()">Mesa</button>`;
@@ -1385,6 +1385,11 @@ window.addEventListener('drop', async e=>{
   if(!validos.length){ toast('Nenhum PDF ou imagem no que você soltou.',true); return; }
   if(validos.length===1) return adicionarUma(validos[0]);
   await adicionarVarias(validos);
+});
+// trava anti-bug: qualquer fim de arraste limpa tudo e esconde a barra de mover
+window.addEventListener('dragend', ()=>{
+  _dragItem=null; _arrastando=null; esconderAlvos();
+  document.querySelectorAll('.drop-antes,.drop-depois').forEach(e=>e.classList.remove('drop-antes','drop-depois'));
 });
 async function coletarArquivos(dt){
   const items = dt.items ? Array.from(dt.items) : [];
