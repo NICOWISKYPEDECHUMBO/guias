@@ -338,6 +338,7 @@
     <nav class="crumbs" id="crumbs"></nav>
     <div class="usuario"><span id="email-usuario"></span>
       <button id="btn-senha" class="btn secundario" style="padding:8px 12px">Senha</button>
+      <button id="btn-sair-todos" class="btn secundario" style="padding:8px 12px">Sair de todos</button>
       <button id="btn-sair" class="btn secundario" style="padding:8px 12px">Sair</button></div>
   </header>
   <main>
@@ -447,6 +448,12 @@ function traduzErro(m){
   return m;
 }
 $('btn-sair').onclick = ()=> sb.auth.signOut();
+$('btn-sair-todos').onclick = async ()=>{
+  const ok = await pedirConfirma('Sair de todos os aparelhos','Isso desconecta a sua conta de todos os navegadores e celulares. Vai precisar entrar de novo em cada um. Continuar?');
+  if(!ok) return;
+  try{ await sb.auth.signOut({ scope:'global' }); }
+  catch(e){ try{ await sb.auth.signOut(); }catch(_){} }
+};
 $('btn-senha').onclick = ()=> alterarSenha();
 $('btn-esqueci').onclick = ()=> esqueciSenha();
 
