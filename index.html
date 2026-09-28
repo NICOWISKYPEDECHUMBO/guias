@@ -325,6 +325,8 @@
     <button id="btn-entrar" class="btn bloco">Entrar</button>
     <div style="text-align:center;margin-top:6px">
       <button id="btn-alternar" class="link">Não tem conta? Criar conta</button>
+      <span style="color:var(--tinta2)"> · </span>
+      <button id="btn-esqueci" class="link">Esqueci minha senha</button>
     </div>
     <div id="aviso-login" class="aviso"></div>
   </div>
@@ -335,6 +337,7 @@
   <header class="topo">
     <nav class="crumbs" id="crumbs"></nav>
     <div class="usuario"><span id="email-usuario"></span>
+      <button id="btn-senha" class="btn secundario" style="padding:8px 12px">Senha</button>
       <button id="btn-sair" class="btn secundario" style="padding:8px 12px">Sair</button></div>
   </header>
   <main>
@@ -444,8 +447,42 @@ function traduzErro(m){
   return m;
 }
 $('btn-sair').onclick = ()=> sb.auth.signOut();
+$('btn-senha').onclick = ()=> alterarSenha();
+$('btn-esqueci').onclick = ()=> esqueciSenha();
+
+async function esqueciSenha(){
+  const email=($('in-email').value||'').trim();
+  if(!email){ avisoLogin('Digite seu e-mail no campo acima e clique de novo.'); $('in-email').focus(); return; }
+  $('btn-esqueci').disabled=true;
+  try{
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] });
+    if(error) throw error;
+    avisoLogin('Enviamos um link de recuperação para '+email+'. Abra o e-mail e clique no link.', true);
+  }catch(err){ avisoLogin(traduzErro(err.message)); }
+  finally{ $('btn-esqueci').disabled=false; }
+}
+async function alterarSenha(){
+  const nova = await pedirTexto('Alterar senha','Digite a nova senha (mínimo 6 caracteres):','', 'nova senha','password');
+  if(nova===null) return;
+  if((nova||'').length<6) return toast('A senha precisa de pelo menos 6 caracteres.',true);
+  const { error } = await sb.auth.updateUser({ password: nova });
+  if(error) return toast('Erro ao alterar: '+error.message,true);
+  toast('Senha alterada com sucesso.');
+}
+async function definirNovaSenhaRecuperacao(){
+  const nova = await pedirTexto('Definir nova senha','Recuperação de acesso. Digite a nova senha (mínimo 6):','', 'nova senha','password');
+  if(nova===null) return;
+  if((nova||'').length<6){ toast('A senha precisa de pelo menos 6 caracteres.',true); return definirNovaSenhaRecuperacao(); }
+  const { error } = await sb.auth.updateUser({ password: nova });
+  if(error){ toast('Erro: '+error.message,true); return; }
+  try{ history.replaceState(null,'',location.href.split('#')[0]); }catch(_){}
+  toast('Senha redefinida! Você já está dentro.');
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session && session.user && !logado){ estado.user=session.user; logado=true; entrarNoApp(); }
+}
 
 sb.auth.onAuthStateChange((_ev,session)=>{
+  if(_ev==='PASSWORD_RECOVERY'){ definirNovaSenhaRecuperacao(); return; }
   if(session && session.user){
     estado.user = session.user;
     if(!logado){ logado=true; entrarNoApp(); }
@@ -459,6 +496,7 @@ sb.auth.onAuthStateChange((_ev,session)=>{
 // carrega direto ao abrir (sem precisar de F5)
 (async ()=>{
   try{
+    if((location.hash||'').includes('type=recovery')) return; // deixa a recuperação de senha abrir
     const { data:{ session } } = await sb.auth.getSession();
     if(session && session.user && !logado){ estado.user=session.user; logado=true; entrarNoApp(); }
   }catch(e){ console.warn(e); }
