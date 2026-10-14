@@ -296,14 +296,14 @@
   .fundo-modal{position:fixed;inset:0;z-index:50;background:rgba(8,10,14,.6);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;padding:18px}
   .modal{background:var(--painel);border:1px solid var(--linha);border-radius:16px;padding:22px;
-    width:100%;max-width:460px;box-shadow:0 30px 70px rgba(0,0,0,.55)}
+    width:100%;max-width:460px;max-height:90vh;overflow:auto;box-shadow:0 30px 70px rgba(0,0,0,.55)}
   .modal h3{margin:0 0 6px;font-size:18px}
   .modal p{color:var(--tinta2);font-size:14px;margin:0 0 16px}
   .modal input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--linha);background:#1f232a;color:#fff;font-size:15px}
   .modal .linha{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
   .modal-visor{max-width:900px;width:100%}
   .modal-visor iframe,.modal-visor img{width:100%;height:70vh;border:none;border-radius:10px;background:#fff;object-fit:contain}
-  .opcoes-carimbo{display:grid;gap:9px;grid-template-columns:1fr 1fr}
+  .opcoes-carimbo{display:grid;gap:9px;grid-template-columns:1fr 1fr;max-height:56vh;overflow:auto;padding:2px}
   .op-carimbo{border:2px solid;border-radius:10px;padding:11px;font-weight:700;font-family:Archivo;color:#fff;
     text-transform:uppercase;letter-spacing:.5px;font-size:13px}
   .spinner{width:22px;height:22px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;
