@@ -381,6 +381,28 @@ const CARIMBOS = {
   escaneado:      {rotulo:'Escaneado',    cor:'#6d4bb8'},
   remessa:        {rotulo:'Remessa Nº',   cor:'#0e7490'},
   nao_autorizado: {rotulo:'Exame não autorizado para esse servidor', cor:'#9d174d'},
+  u_tijuca_dedica:      {rotulo:'1 - Tijuca - Dedica Saúde',            cor:'#4f46e5'},
+  u_copa_dedica:        {rotulo:'2 - Copacabana - Dedica Saúde',        cor:'#4f46e5'},
+  u_nig_dedica:         {rotulo:'3 - Nova Iguaçu - Dedica Saúde',       cor:'#4f46e5'},
+  u_nig_ebem:           {rotulo:'3 - Nova Iguaçu - Ebem Med',           cor:'#4f46e5'},
+  u_cg_global:          {rotulo:'4 - Campo Grande - Global',            cor:'#4f46e5'},
+  u_resende_riomedical: {rotulo:'5 - Resende - Rio Medical',            cor:'#4f46e5'},
+  u_barra_rjexames:     {rotulo:'6 - Barra da Tijuca - RJ Exames',      cor:'#4f46e5'},
+  u_petropolis_fluxomed:{rotulo:'7 - Petrópolis - Fluxomed',           cor:'#4f46e5'},
+  u_teresopolis_ac:     {rotulo:'8 - Teresópolis - AC',                cor:'#4f46e5'},
+  u_marica_vidasaude:   {rotulo:'9 - Maricá - Vida Saúde',             cor:'#4f46e5'},
+  u_spa_ac:             {rotulo:'10 - São Pedro da Aldeia - AC',        cor:'#4f46e5'},
+  u_niteroi_totalmed:   {rotulo:'11 - Niterói - Totalmed',             cor:'#4f46e5'},
+  u_macae_ejl:          {rotulo:'12 - Macaé - EJL',                    cor:'#4f46e5'},
+  u_vr_gaspar:          {rotulo:'13 - Volta Redonda - Gaspar',          cor:'#4f46e5'},
+  u_saquarema_alvida:   {rotulo:'14 - Saquarema - Alvida',             cor:'#4f46e5'},
+  u_friburgo_holos:     {rotulo:'15 - Nova Friburgo - Holos',           cor:'#4f46e5'},
+  u_centro_gso:         {rotulo:'16 - Centro - Gsoexames',              cor:'#4f46e5'},
+  u_mangaratiba_viviane:{rotulo:'17 - Mangaratiba - Dra. Viviane Branco',cor:'#4f46e5'},
+  u_miguelpereira_desst:{rotulo:'18 - Miguel Pereira - Desst',          cor:'#4f46e5'},
+  u_angra_audiomed:     {rotulo:'19 - Angra dos Reis - Audiomed',       cor:'#4f46e5'},
+  u_angra_vida:         {rotulo:'19 - Angra dos Reis - Vida',           cor:'#4f46e5'},
+  u_itaguai_centermed:  {rotulo:'20 - Itaguaí - Centermed',            cor:'#4f46e5'},
 };
 const MIN_GUIAS = 20, MAX_GUIAS = 50;
 
@@ -1393,8 +1415,7 @@ async function adicionarVarias(files){
 
 $('file-guia').addEventListener('change', async e=>{
   const files = [...e.target.files]; if(!files.length) return;
-  if(files.length===1) return adicionarUma(files[0]);
-  await adicionarVarias(files);
+  await adicionarVarias(files);   // usa o nome do arquivo idêntico (sem OCR, sem renomear)
 });
 $('file-pasta').addEventListener('change', async e=>{
   const files = [...e.target.files].filter(ehGuiaArquivo);
@@ -1428,8 +1449,7 @@ window.addEventListener('drop', async e=>{
   const arquivos = await coletarArquivos(e.dataTransfer);
   const validos = arquivos.filter(ehGuiaArquivo);
   if(!validos.length){ toast('Nenhum PDF ou imagem no que você soltou.',true); return; }
-  if(validos.length===1) return adicionarUma(validos[0]);
-  await adicionarVarias(validos);
+  await adicionarVarias(validos);   // usa o nome do arquivo idêntico (sem OCR)
 });
 // trava anti-bug: qualquer fim de arraste limpa tudo e esconde a barra de mover
 window.addEventListener('dragend', ()=>{
