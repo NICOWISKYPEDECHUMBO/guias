@@ -810,8 +810,50 @@ function renderBarraSel(){
     <button class="btn secundario" onclick="selecionarTodos()">Selecionar todos</button>
     <button class="btn" onclick="carimbarSelecionados()">Carimbar${n?` (${n})`:''}</button>
     ${tipoDoView()!=='mala'?`<button class="btn secundario" onclick="moverSelecionados()">Mover${n?` (${n})`:''}</button>`:''}
+    ${tipoDoView()==='guia'?`<button class="btn secundario" onclick="baixarSelecionados()">Baixar${n?` (${n})`:''}</button>`:''}
     <button class="btn perigo" onclick="excluirSelecionados()">Excluir${n?` (${n})`:''}</button>
     <button class="btn secundario" onclick="sairSelecao()">Cancelar</button>`;
+}
+let _jszipOk=false;
+async function garantirZip(){
+  if(_jszipOk) return;
+  await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  _jszipOk=true;
+}
+async function baixarSelecionados(){
+  const ids=[...estado.sel];
+  if(!ids.length) return toast('Marque pelo menos uma guia.',true);
+  const guias=ids.map(id=>estado.guias.find(g=>g.id===id)).filter(g=>g&&g.arquivo_path);
+  if(!guias.length) return toast('As guias marcadas não têm arquivo.',true);
+  // 1 guia só: baixa direto; várias: zip
+  const fechar=modalCarregando('Baixando…',`0 de ${guias.length}`);
+  try{
+    if(guias.length===1){
+      const g=guias[0]; const ext=(g.arquivo_path.split('.').pop()||'pdf');
+      const {data,error}=await sb.storage.from(BUCKET).createSignedUrl(g.arquivo_path,120,{download:`${nomeArquivoSeguro(g.nome)}.${ext}`});
+      if(error) throw error;
+      const a=document.createElement('a'); a.href=data.signedUrl; a.download=`${nomeArquivoSeguro(g.nome)}.${ext}`; document.body.appendChild(a); a.click(); a.remove();
+      fechar(); sairSelecao(); return;
+    }
+    await garantirZip();
+    const zip=new JSZip(); const usados={};
+    for(let i=0;i<guias.length;i++){
+      const g=guias[i]; fechar.progresso(`${i+1} de ${guias.length}`);
+      const {data:blob,error}=await sb.storage.from(BUCKET).download(g.arquivo_path);
+      if(error||!blob) continue;
+      const ext=(g.arquivo_path.split('.').pop()||'pdf');
+      let nome=`${nomeArquivoSeguro(g.nome)}.${ext}`;
+      if(usados[nome]){ usados[nome]++; nome=`${nomeArquivoSeguro(g.nome)} (${usados[nome]}).${ext}`; } else usados[nome]=1;
+      zip.file(nome, blob);
+    }
+    fechar.progresso('Compactando…');
+    const out=await zip.generateAsync({type:'blob'});
+    const url=URL.createObjectURL(out);
+    const pasta=(estado.pastaAtual&&estado.pastaAtual.nome)||'guias';
+    const a=document.createElement('a'); a.href=url; a.download=`${nomeArquivoSeguro(pasta)}.zip`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    fechar(); sairSelecao();
+  }catch(err){ fechar(); toast('Não deu para baixar: '+(err.message||''),true); }
 }
 async function excluirSelecionados(){
   const tipo=tipoDoView();
@@ -1925,7 +1967,7 @@ function toast(msg,erro){
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,aoBuscar,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
-  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,
+  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,baixarSelecionados,
   guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd,
   pastaDragStart,pastaDragEnd,pastaDragOver,pastaDragLeave,pastaDrop,
   malaDragStart,malaDragOver,malaDragLeave,malaDrop,malaDragEnd,
