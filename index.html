@@ -1416,7 +1416,7 @@ async function adicionarUma(file){
   catch(err){ fechar2(); toast('Não deu para guardar: '+err.message,true); }
 }
 
-let _ordemUpload='nomedata';
+let _ordemUpload='como';
 function escolherOrdemUpload(){
   return Promise.resolve(_ordemUpload);
 }
@@ -1427,14 +1427,7 @@ function dataDoNome(nome){
   return y*10000 + mo*100 + d;
 }
 async function adicionarVarias(files){
-  const modo = await escolherOrdemUpload();
-  files = files.map((f,i)=>({f,i}));   // guarda a ordem original pra desempate estável
-  if(modo==='nomedata') files.sort((a,b)=> (dataDoNome(a.f.name)-dataDoNome(b.f.name)) || (a.i-b.i));
-  else if(modo==='nome') files.sort((a,b)=>
-    (a.f.webkitRelativePath||a.f.name||'').localeCompare((b.f.webkitRelativePath||b.f.name||''), 'pt', {numeric:true, sensitivity:'base'}) || (a.i-b.i));
-  else if(modo==='data') files.sort((a,b)=> ((a.f.lastModified||0)-(b.f.lastModified||0)) || (a.i-b.i));
-  files = files.map(x=>x.f);
-  // 'como' → mantém a ordem que o navegador entregou
+  files = files.slice();   // mantém EXATAMENTE a ordem da pasta/seleção — sem reordenar nada
   _uploading = true;
   const pastaId = estado.pastaAtual.id;
   let base = estado.guias.filter(g=>g.pasta_id===pastaId).reduce((m,g)=>Math.max(m, g.ordem||0), 0);
