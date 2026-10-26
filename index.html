@@ -1426,8 +1426,24 @@ function dataDoNome(nome){
   let d=+m[1], mo=+m[2], y=+m[3]; if(y<100) y+=2000;
   return y*10000 + mo*100 + d;
 }
+function _dataNome(nome){
+  // pega DD.MM.AAAA / DD-MM-AAAA / DD_MM_AAAA (ou AA) no começo ou em qualquer lugar do nome
+  const m=(nome||'').match(/(\d{1,2})[._\-\/](\d{1,2})[._\-\/](\d{2,4})/);
+  if(!m) return null;
+  let d=+m[1], mo=+m[2], y=+m[3]; if(y<100) y+=2000;
+  if(d>31||mo>12) return null;
+  return y*10000 + mo*100 + d;   // número comparável (ano, mês, dia)
+}
 async function adicionarVarias(files){
-  files = files.slice();   // mantém EXATAMENTE a ordem da pasta/seleção — sem reordenar nada
+  // ordena pela DATA do nome (cronológica). Sem data no nome, cai pra ordem por nome (natural).
+  files = files.map((f,i)=>({f,i,dt:_dataNome(f.name)}))
+    .sort((a,b)=>{
+      if(a.dt!=null && b.dt!=null) return (a.dt-b.dt) || (a.i-b.i);
+      if(a.dt!=null) return -1;
+      if(b.dt!=null) return 1;
+      return (a.f.name||'').localeCompare((b.f.name||''),'pt',{numeric:true,sensitivity:'base'}) || (a.i-b.i);
+    })
+    .map(x=>x.f);
   _uploading = true;
   const pastaId = estado.pastaAtual.id;
   let base = estado.guias.filter(g=>g.pasta_id===pastaId).reduce((m,g)=>Math.max(m, g.ordem||0), 0);
