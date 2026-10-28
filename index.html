@@ -413,7 +413,7 @@ const estado = {
   view:'mesa',          // mesa | mala | pasta
   malaAtual:null, pastaAtual:null,
   destrancadas:new Set(),
-  modoSel:false, sel:new Set(),
+  modoSel:false, sel:new Set(), robo:false,
   busca:'', soProblemas:false
 };
 let logado = false;
@@ -811,9 +811,59 @@ function renderBarraSel(){
     <button class="btn" onclick="carimbarSelecionados()">Carimbar${n?` (${n})`:''}</button>
     ${tipoDoView()!=='mala'?`<button class="btn secundario" onclick="moverSelecionados()">Mover${n?` (${n})`:''}</button>`:''}
     ${tipoDoView()==='guia'?`<button class="btn secundario" onclick="baixarSelecionados()">Baixar${n?` (${n})`:''}</button>`:''}
+    ${(tipoDoView()==='guia'&&estado.robo)?`<button class="btn secundario" onclick="enviarRoboLote()">🤖 Robô${n?` (${n})`:''}</button>`:''}
     <button class="btn perigo" onclick="excluirSelecionados()">Excluir${n?` (${n})`:''}</button>
     <button class="btn secundario" onclick="sairSelecao()">Cancelar</button>`;
 }
+/* ===== Modo Robô (escondido: 3x no cabeçalho + senha) ===== */
+let _hdrN=0, _hdrT=0;
+(function(){ const h=document.querySelector('header.topo'); if(!h) return;
+  h.addEventListener('click', e=>{
+    if(e.target.closest('button,input,a')) return;
+    const now=Date.now(); if(now-_hdrT>1500) _hdrN=0; _hdrT=now; _hdrN++;
+    if(_hdrN>=3){ _hdrN=0; revelarRobo(); }
+  });
+})();
+async function revelarRobo(){
+  if(estado.robo){ estado.robo=false; render(); toast('Modo Robô desligado.'); return; }
+  const s=await pedirTexto('Modo Robô SIASS','Digite a senha para liberar o envio ao robô:','', 'senha','password');
+  if(s===null) return;
+  if(s!=='melfeficaramgostosas'){ toast('Senha incorreta.',true); return; }
+  estado.robo=true; render(); toast('Modo Robô ligado. Use o ⋯ da guia, ou Selecionar → 🤖 Robô.');
+}
+async function _guiaB64(g){
+  const {data:blob,error}=await sb.storage.from(BUCKET).download(g.arquivo_path);
+  if(error||!blob) throw (error||new Error('sem arquivo'));
+  return await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); });
+}
+async function enviarRobo(guias, nome){
+  const validas=(guias||[]).filter(g=>g&&g.arquivo_path);
+  if(!validas.length) return toast('Essas guias não têm arquivo.',true);
+  const fechar=modalCarregando('Preparando pro robô…',`0 de ${validas.length}`);
+  const out=[];
+  for(let i=0;i<validas.length;i++){
+    const g=validas[i]; fechar.progresso(`${i+1} de ${validas.length}`);
+    try{ out.push({ nome:`${nomeArquivoSeguro(g.nome)}.pdf`, b64: await _guiaB64(g) }); }
+    catch(err){ console.warn('robo', err); }
+  }
+  fechar();
+  if(!out.length) return toast('Não consegui preparar as guias.',true);
+  window.postMessage({ tipo:'malas2robo', nome: nome||'Guias', guias: out }, '*');
+  toast(`${out.length} guia(s) enviada(s) ao robô. Confirme a ordem na janela do robô.`);
+}
+function enviarRoboLote(){
+  const ord=guiasDaPasta(estado.pastaAtual.id);
+  const lista = estado.sel.size ? ord.filter(g=>estado.sel.has(g.id)) : ord;
+  const nome=(estado.pastaAtual&&estado.pastaAtual.nome)||'Guias';
+  sairSelecao();
+  enviarRobo(lista, nome);
+}
+function enviarRoboUma(id){
+  fecharMenus();
+  const g=estado.guias.find(x=>x.id===id); if(!g) return;
+  enviarRobo([g], g.nome||'Guia');
+}
+
 let _jszipOk=false;
 async function garantirZip(){
   if(_jszipOk) return;
@@ -1750,6 +1800,7 @@ function abrirMenu(ev,tipo,id){
     itens += `<button onclick="acaoRenomear('${tipo}','${id}')">Renomear</button>`;
     if(tipo==='pasta') itens += `<button onclick="escolherCor('pasta','${id}')">Cor</button>`;
     itens += `<button onclick="abrirObs('${tipo}','${id}')">Observação</button>`;
+    if(tipo==='guia' && estado.robo) itens += `<button onclick="enviarRoboUma('${id}')">🤖 Enviar ao robô</button>`;
     itens += `<div class="div"></div><button class="del" onclick="acaoExcluir('${tipo}','${id}')">Excluir</button>`;
   }
   menu.innerHTML=itens; alvo.appendChild(menu);
@@ -1974,6 +2025,7 @@ function toast(msg,erro){
 
 /* expor para onclick inline */
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,aoBuscar,
+  enviarRoboLote,enviarRoboUma,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
   entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,baixarSelecionados,
