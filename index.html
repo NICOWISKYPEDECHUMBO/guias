@@ -850,7 +850,7 @@ async function enviarRobo(guias, nome){
   }
   fechar();
   if(!out.length) return toast('Não consegui preparar as guias.',true);
-  window.postMessage({ tipo:'malas2robo', nome: nome||'Guias', guias: out }, '*');
+  window.postMessage({ tipo:'malas2robo', nome: nome||'Guias', guias: out }, window.location.origin);
   toast(`${out.length} guia(s) enviada(s) ao robô. Confirme a ordem na janela do robô.`);
 }
 function enviarRoboLote(){
