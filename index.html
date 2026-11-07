@@ -1060,6 +1060,8 @@ function neonHTML(tipo,id){
     const ok=guiaTemLancado(g);
     return `<span class="neon ${ok?'ok':'prob'}" onclick="event.stopPropagation();neonGuia('${id}')" onmousedown="event.stopPropagation()">${ok?'Lançado':'A resolver'}</span>`;
   }
+  const nq = tipo==='mala'? guiasDaMala(id).length : guiasDaPasta(id).length;
+  if(nq===0) return `<span class="neon prob" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">${tipo==='mala'?'Mala vazia':'Pasta vazia'}</span>`;
   const prob = tipo==='mala'? problemasMala(id) : problemasPasta(id);
   if(prob>0) return `<span class="neon prob" onclick="event.stopPropagation();neon${tipo==='mala'?'Mala':'Pasta'}('${id}')" onmousedown="event.stopPropagation()">${prob} a resolver</span>`;
   return `<span class="neon ok" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">Tudo lançado</span>`;
@@ -1078,9 +1080,9 @@ const SVG_MALA_FACE = `<svg viewBox="0 0 420 210" preserveAspectRatio="xMidYMid 
     <path d="M120 72 C150 84 90 100 120 112 C150 124 90 140 120 152" fill="none" stroke-width="6" stroke-linecap="round"/>
     <path d="M120 72 C90 84 150 100 120 112 C90 124 150 140 120 152" fill="none" stroke-width="6" stroke-linecap="round"/>
   </g>
-  <line x1="168" y1="120" x2="352" y2="120" stroke="url(#ouroM)" stroke-width="2" opacity="0.8"/>
-  <text x="260" y="150" text-anchor="middle" font-family="Archivo, serif" font-weight="800" font-size="30" letter-spacing="2" fill="url(#ouroM)">DEDICA SAÚDE</text>
-  <text x="396" y="192" text-anchor="end" font-family="Inter, sans-serif" font-weight="600" font-size="10" letter-spacing="1" fill="url(#ouroM)" opacity="0.85">SAÚDE SEMPRE EM PRIMEIRO LUGAR</text>
+  <line x1="172" y1="120" x2="330" y2="120" stroke="url(#ouroM)" stroke-width="2" opacity="0.8"/>
+  <text x="251" y="150" text-anchor="middle" font-family="Archivo, serif" font-weight="800" font-size="27" letter-spacing="1" textLength="206" lengthAdjust="spacingAndGlyphs" fill="url(#ouroM)">DEDICA SAÚDE</text>
+  <text x="372" y="192" text-anchor="end" font-family="Inter, sans-serif" font-weight="600" font-size="10" letter-spacing="1" textLength="196" lengthAdjust="spacingAndGlyphs" fill="url(#ouroM)" opacity="0.85">SAÚDE SEMPRE EM PRIMEIRO LUGAR</text>
 </svg>`;
 
 /* ----- cards ----- */
