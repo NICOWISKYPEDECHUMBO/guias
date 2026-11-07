@@ -132,6 +132,7 @@
   .checksel.on{background:#3f7fe0;border-color:#3f7fe0}
   .item.sel .corpo{outline:3px solid #3f7fe0 !important;outline-offset:2px;border-radius:16px;box-shadow:0 0 0 5px rgba(63,127,224,.45)}
   .item.sel{filter:brightness(1.06)}
+  .sel-cap{position:absolute;inset:0;z-index:20;cursor:pointer;border-radius:16px;background:transparent}
   .barra-acao .spacer{flex:1}
   .grade{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
   .vazio{color:var(--tinta2);border:1px dashed var(--linha);border-radius:14px;padding:40px 20px;text-align:center}
@@ -1093,6 +1094,7 @@ function malaCard(m){
   const corSty = m.cor ? `style="--cor-item:${m.cor}"` : '';
   const dials = String(Math.min(n,999)).padStart(3,'0').split('').map(d=>`<i>${d}</i>`).join('');
   return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''} ${m.cor?'temcor':''}" data-id="${m.id}" ${corSty} ${dnd}>
+    ${selMode ? `<div class="sel-cap" onclick="toggleSel('${m.id}')"></div>` : ''}
     ${selMode ? selChk('mala',m.id) : botaoAcoes('mala',m.id)}
     ${etiquetaObsHTML('mala',m.id,m.obs)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
@@ -1124,6 +1126,7 @@ function pastaCard(p){
      ondragleave="pastaDragLeave(event)" ondrop="pastaDrop(event,'${p.id}')" ondragend="pastaDragEnd(event)"`;
   const corSty = p.cor ? `style="--cor-item:${p.cor}"` : '';
   return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''} ${p.cor?'temcor':''}" data-id="${p.id}" ${corSty} ${dnd}>
+    ${selMode ? `<div class="sel-cap" onclick="toggleSel('${p.id}')"></div>` : ''}
     ${selMode ? selChk('pasta',p.id) : (trav?'':botaoAcoes('pasta',p.id))}
     ${etiquetaObsHTML('pasta',p.id,p.obs)}
     <div class="rotulo-topo" onclick="event.stopPropagation()">
@@ -1148,6 +1151,7 @@ function guiaCard(g, numero){
      ondragstart="guiaDragStart(event,'${g.id}')" ondragover="guiaDragOver(event,'${g.id}')"
      ondragleave="guiaDragLeave(event)" ondrop="guiaDrop(event,'${g.id}')" ondragend="guiaDragEnd(event)"`;
   return `<div class="item guia ${trav?'travado':''} ${estado.sel.has(g.id)?'sel':''}" data-id="${g.id}" ${dnd}>
+    ${selMode ? `<div class="sel-cap" onclick="toggleSel('${g.id}')"></div>` : ''}
     ${brocheHTML(numero)}
     ${etiquetaObsHTML('guia',g.id,g.obs)}
     <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
@@ -2026,7 +2030,7 @@ function toast(msg,erro){
 
 /* expor para onclick inline */
 Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirMenu,acaoCarimbar,removerCarimbo,aoBuscar,
-  enviarRoboLote,enviarRoboUma,
+  enviarRoboLote,enviarRoboUma,toggleSel,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
   entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,baixarSelecionados,
