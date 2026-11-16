@@ -123,7 +123,7 @@
   .busca input{border:none;background:none;outline:none;color:var(--tinta);font-size:14px;width:100%}
   .busca input::placeholder{color:var(--tinta2)}
   .busca input::-webkit-search-cancel-button{filter:invert(.6)}
-  .barra-sel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 18px;padding:12px 14px;
+  .barra-sel{position:relative;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 18px;padding:12px 14px;
     background:#20242b;border:1px solid var(--linha);border-radius:12px}
   .barra-sel .cont{font-weight:600;font-size:14px;margin-right:auto}
   .checksel{position:absolute;top:8px;right:8px;z-index:9;width:26px;height:26px;border-radius:50%;
@@ -132,7 +132,7 @@
   .checksel.on{background:#3f7fe0;border-color:#3f7fe0}
   .item.sel .corpo{outline:3px solid #3f7fe0 !important;outline-offset:2px;border-radius:16px;box-shadow:0 0 0 5px rgba(63,127,224,.45)}
   .item.sel{filter:brightness(1.06)}
-  .sel-cap{position:absolute;inset:0;z-index:20;cursor:pointer;border-radius:16px;background:transparent}
+  .item.sel-mode{cursor:pointer}
   .barra-acao .spacer{flex:1}
   .grade{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
   .vazio{color:var(--tinta2);border:1px dashed var(--linha);border-radius:14px;padding:40px 20px;text-align:center}
@@ -587,11 +587,24 @@ function ligarRealtime(){
 function desligarRealtime(){ if(_canalRT){ try{ sb.removeChannel(_canalRT); }catch(_){} _canalRT=null; } }
 
 /* ================= DADOS ================= */
+async function buscarTudoPaginado(sel){
+  // puxa TODAS as linhas em páginas de 1000 (o Supabase corta em 1000 por padrão)
+  const PAG=1000; let de=0, todas=[];
+  while(true){
+    const r = await sb.from('mala_guias').select(sel).order('created_at').range(de, de+PAG-1);
+    if(r.error) return {error:r.error};
+    const lote = r.data||[]; todas = todas.concat(lote);
+    if(lote.length < PAG) break;          // acabou
+    de += PAG;
+    if(de > 200000) break;                // trava de segurança
+  }
+  return {data:todas};
+}
 async function buscarTudo(){
   const [m,p,g] = await Promise.all([
     sb.from('malas').select('*').order('created_at'),
     sb.from('mala_pastas').select('*').order('created_at'),
-    sb.from('mala_guias').select('id,mala_id,pasta_id,nome,carimbos,ordem,meta,arquivo_path,created_at,obs').order('created_at'),
+    buscarTudoPaginado('id,mala_id,pasta_id,nome,carimbos,ordem,meta,arquivo_path,created_at,obs'),
   ]);
   if(m.error || p.error || g.error) return false;   // não apaga a tela numa falha
   estado.malas = m.data||[]; estado.pastas = p.data||[]; estado.guias = g.data||[];
@@ -1095,18 +1108,16 @@ function malaCard(m){
      ondragleave="malaDragLeave(event)" ondrop="malaDrop(event,'${m.id}')" ondragend="malaDragEnd(event)"`;
   const corSty = m.cor ? `style="--cor-item:${m.cor}"` : '';
   const dials = String(Math.min(n,999)).padStart(3,'0').split('').map(d=>`<i>${d}</i>`).join('');
-  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''} ${m.cor?'temcor':''}" data-id="${m.id}" ${corSty} ${dnd}>
-    ${selMode ? `<div class="sel-cap" onclick="toggleSel('${m.id}')"></div>` : ''}
+  return `<div class="item mala ${trav?'travado':''} ${estado.sel.has(m.id)?'sel':''} ${m.cor?'temcor':''}" data-id="${m.id}" ${corSty} ${dnd} ${selMode?`onclick="toggleSel('${m.id}')"`:''}>
     ${selMode ? selChk('mala',m.id) : botaoAcoes('mala',m.id)}
     ${etiquetaObsHTML('mala',m.id,m.obs)}
-    <div class="rotulo-topo" onclick="event.stopPropagation()">
+    <div class="rotulo-topo" ${selMode?'':`onclick="event.stopPropagation()"`}>
       <div class="rot">Mala</div>
-      <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false" onmousedown="event.stopPropagation()"
-           onclick="event.stopPropagation()"
+      <div class="nome-edit" contenteditable="${(trav||selMode)?'false':'true'}" draggable="false" ${selMode?'':`onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"`}
            onblur="salvarNome('mala','${m.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(m.nome)}</div>
     </div>
-    <div class="corpo" onclick="abrirMala('${m.id}')" style="cursor:pointer">
+    <div class="corpo" ${selMode?'':`onclick="abrirMala('${m.id}')"`} style="cursor:pointer">
       <span class="alca"></span>
       <span class="canto tl"></span><span class="canto tr"></span><span class="canto bl"></span><span class="canto br"></span>
       <span class="trava">${dials}</span>
@@ -1127,18 +1138,16 @@ function pastaCard(p){
     `draggable="true" ondragstart="pastaDragStart(event,'${p.id}')" ondragover="pastaDragOver(event,'${p.id}')"
      ondragleave="pastaDragLeave(event)" ondrop="pastaDrop(event,'${p.id}')" ondragend="pastaDragEnd(event)"`;
   const corSty = p.cor ? `style="--cor-item:${p.cor}"` : '';
-  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''} ${p.cor?'temcor':''}" data-id="${p.id}" ${corSty} ${dnd}>
-    ${selMode ? `<div class="sel-cap" onclick="toggleSel('${p.id}')"></div>` : ''}
+  return `<div class="item pasta ${trav?'travado':''} ${estado.sel.has(p.id)?'sel':''} ${p.cor?'temcor':''}" data-id="${p.id}" ${corSty} ${dnd} ${selMode?`onclick="toggleSel('${p.id}')"`:''}>
     ${selMode ? selChk('pasta',p.id) : (trav?'':botaoAcoes('pasta',p.id))}
     ${etiquetaObsHTML('pasta',p.id,p.obs)}
-    <div class="rotulo-topo" onclick="event.stopPropagation()">
+    <div class="rotulo-topo" ${selMode?'':`onclick="event.stopPropagation()"`}>
       <div class="rot">Pasta</div>
-      <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false" onmousedown="event.stopPropagation()"
-           onclick="event.stopPropagation()"
+      <div class="nome-edit" contenteditable="${(trav||selMode)?'false':'true'}" draggable="false" ${selMode?'':`onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"`}
            onblur="salvarNome('pasta','${p.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(p.nome)}</div>
     </div>
-    <div class="corpo" onclick="abrirPasta('${p.id}')" style="cursor:pointer">
+    <div class="corpo" ${selMode?'':`onclick="abrirPasta('${p.id}')"`} style="cursor:pointer">
       ${pastaSVG(p.cor)}
     </div>
     <div class="contador"><span class="chip">${n} guia${n===1?'':'s'}</span> ${neonHTML('pasta',p.id)}</div>
@@ -1152,20 +1161,19 @@ function guiaCard(g, numero){
     `draggable="true"
      ondragstart="guiaDragStart(event,'${g.id}')" ondragover="guiaDragOver(event,'${g.id}')"
      ondragleave="guiaDragLeave(event)" ondrop="guiaDrop(event,'${g.id}')" ondragend="guiaDragEnd(event)"`;
-  return `<div class="item guia ${trav?'travado':''} ${estado.sel.has(g.id)?'sel':''}" data-id="${g.id}" ${dnd}>
-    ${selMode ? `<div class="sel-cap" onclick="toggleSel('${g.id}')"></div>` : ''}
+  return `<div class="item guia ${trav?'travado':''} ${estado.sel.has(g.id)?'sel':''}" data-id="${g.id}" ${dnd} ${selMode?`onclick="toggleSel('${g.id}')"`:''}>
     ${brocheHTML(numero)}
     ${etiquetaObsHTML('guia',g.id,g.obs)}
-    <div class="corpo" onclick="verGuia('${g.id}')" style="cursor:pointer">
+    <div class="corpo" ${selMode?'':`onclick="verGuia('${g.id}')"`} style="cursor:pointer">
       <div class="guia-logo" role="img" aria-label="Dedica Saúde"></div>
       ${selMode ? selChk('guia',g.id) : (trav?'':botaoAcoes('guia',g.id))}
-      <div class="nome-edit" contenteditable="${trav?'false':'true'}" draggable="false"
-           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+      <div class="nome-edit" contenteditable="${(trav||selMode)?'false':'true'}" draggable="false"
+           ${selMode?'':`onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"`}
            onblur="salvarNome('guia','${g.id}',this)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${esc(g.nome)}</div>
       <div class="neon-linha">${neonHTML('guia',g.id)}</div>
-      <div class="exames" contenteditable="${trav?'false':'true'}" draggable="false"
-           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+      <div class="exames" contenteditable="${(trav||selMode)?'false':'true'}" draggable="false"
+           ${selMode?'':`onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"`}
            onblur="salvarExames('${g.id}',this)">${esc((g.meta&&g.meta.exames)||'').replace(/\n/g,'<br>')}</div>
       ${carimbosHTML(g.carimbos, 'guia', g.id, trav)}
     </div>
@@ -1506,18 +1514,29 @@ async function adicionarVarias(files){
   let base = estado.guias.filter(g=>g.pasta_id===pastaId).reduce((m,g)=>Math.max(m, g.ordem||0), 0);
   const fechar = modalCarregando('Enviando guias…', `0 de ${files.length}`);
   let ok=0, falhas=0;
-  for(let i=0;i<files.length;i++){
-    const file=files[i];
-    fechar.progresso(`${i} de ${files.length}`);
-    try{
-      base += 1;
-      await salvarGuia(file, nomeDoArquivo(file.name), {}, base);   // nome = nome COMPLETO do arquivo, ordem fixa
-      ok++;
-    }catch(err){ console.warn('salvar', file.name, err); falhas++; }
-    fechar.progresso(`${i+1} de ${files.length}`);
+  try{
+    try{ await sb.auth.refreshSession(); }catch(_){}   // evita token vencido entre lotes
+    for(let i=0;i<files.length;i++){
+      const file=files[i];
+      fechar.progresso(`${i} de ${files.length}`);
+      let tentou=0;
+      while(true){
+        try{
+          base += 1;
+          await salvarGuia(file, nomeDoArquivo(file.name), {}, base);
+          ok++; break;
+        }catch(err){
+          // 1ª falha: tenta renovar a sessão e repetir uma vez (token/ქrede)
+          if(tentou===0){ tentou=1; base-=1; try{ await sb.auth.refreshSession(); }catch(_){} continue; }
+          console.warn('salvar', file.name, err); falhas++; break;
+        }
+      }
+      fechar.progresso(`${i+1} de ${files.length}`);
+    }
+  } finally {
+    _uploading = false;
+    fechar(); render();
   }
-  _uploading = false;
-  fechar(); render();
   toast(`${ok} guia${ok===1?'':'s'} adicionada${ok===1?'':'s'}${falhas?` · ${falhas} com erro`:''}.`, falhas>0);
 }
 
