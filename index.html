@@ -1499,7 +1499,17 @@ function _dataNome(nome){
   if(d>31||mo>12) return null;
   return y*10000 + mo*100 + d;   // número comparável (ano, mês, dia)
 }
+let _addLiberado=false;
+async function pedirSenhaAdd(){
+  if(_addLiberado) return true;
+  const s=await pedirTexto('Senha para adicionar guias','Digite a senha:','', 'senha','password');
+  if(s===null) return false;
+  if(s!=='NCAPDS11'){ toast('Senha incorreta.',true); return false; }
+  _addLiberado=true;   // libera até recarregar a página
+  return true;
+}
 async function adicionarVarias(files){
+  if(!await pedirSenhaAdd()) return;   // trava: pede senha antes de enviar
   // ordena pela DATA do nome (cronológica). Sem data no nome, cai pra ordem por nome (natural).
   files = files.map((f,i)=>({f,i,dt:_dataNome(f.name)}))
     .sort((a,b)=>{
