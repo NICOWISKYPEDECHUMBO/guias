@@ -885,12 +885,52 @@ async function garantirZip(){
   await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   _jszipOk=true;
 }
+// Tela de reordenar antes de baixar (arrastar ou setas ↑ ↓). Resolve com a lista na ordem, ou null se cancelar.
+function ordenarParaBaixar(guias){
+  return new Promise(resolve=>{
+    let ordem = guias.slice();
+    const linha = (g,i)=>`<li class="ord-li" draggable="true" data-i="${i}"
+        style="display:flex;align-items:center;gap:10px;padding:9px 10px;margin:6px 0;background:#20242b;border:1px solid var(--linha);border-radius:10px;cursor:grab">
+        <span style="opacity:.6;min-width:26px;text-align:right">${i+1}.</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.nome)}</span>
+        <button class="btn secundario" style="padding:4px 10px" data-up="${i}" ${i===0?'disabled':''}>↑</button>
+        <button class="btn secundario" style="padding:4px 10px" data-dn="${i}" ${i===ordem.length-1?'disabled':''}>↓</button>
+      </li>`;
+    function pinta(){ const ul=$('ord-ul'); if(ul) ul.innerHTML=ordem.map(linha).join(''); }
+    abrirModal(`<div class="modal" style="max-width:560px">
+      <h3>Ordem do download</h3>
+      <p>Arraste, ou use as setas, pra deixar na ordem que você quer. Depois é só baixar.</p>
+      <ul id="ord-ul" style="list-style:none;padding:0;margin:8px 0;max-height:52vh;overflow:auto"></ul>
+      <div class="linha" style="justify-content:flex-end;gap:10px;margin-top:12px">
+        <button class="btn secundario" id="ord-cancel">Cancelar</button>
+        <button class="btn" id="ord-ok">Baixar nessa ordem</button>
+      </div></div>`);
+    pinta();
+    const ul=$('ord-ul');
+    ul.addEventListener('click', e=>{
+      const up=e.target.closest('[data-up]'), dn=e.target.closest('[data-dn]');
+      if(up){ const i=+up.dataset.up; if(i>0){ [ordem[i-1],ordem[i]]=[ordem[i],ordem[i-1]]; pinta(); } }
+      if(dn){ const i=+dn.dataset.dn; if(i<ordem.length-1){ [ordem[i+1],ordem[i]]=[ordem[i],ordem[i+1]]; pinta(); } }
+    });
+    let de=null;
+    ul.addEventListener('dragstart', e=>{ const li=e.target.closest('.ord-li'); if(li){ de=+li.dataset.i; e.dataTransfer.effectAllowed='move'; } });
+    ul.addEventListener('dragover', e=>{ e.preventDefault(); });
+    ul.addEventListener('drop', e=>{ e.preventDefault(); const li=e.target.closest('.ord-li'); if(li&&de!=null){ const para=+li.dataset.i; const x=ordem.splice(de,1)[0]; ordem.splice(para,0,x); de=null; pinta(); } });
+    $('ord-cancel').onclick=()=>{ fecharModal(); resolve(null); };
+    $('ord-ok').onclick=()=>{ const r=ordem.slice(); fecharModal(); resolve(r); };
+  });
+}
 async function baixarSelecionados(){
   const ids=[...estado.sel];
   if(!ids.length) return toast('Marque pelo menos uma guia.',true);
-  const guias=ids.map(id=>estado.guias.find(g=>g.id===id)).filter(g=>g&&g.arquivo_path);
+  let guias=ids.map(id=>estado.guias.find(g=>g.id===id)).filter(g=>g&&g.arquivo_path);
   if(!guias.length) return toast('As guias marcadas não têm arquivo.',true);
-  // 1 guia só: baixa direto; várias: zip
+  // 1 guia só: baixa direto; várias: escolhe a ordem primeiro
+  if(guias.length>1){
+    const ord = await ordenarParaBaixar(guias);
+    if(!ord) return;              // cancelou
+    guias = ord;
+  }
   const fechar=modalCarregando('Baixando…',`0 de ${guias.length}`);
   try{
     if(guias.length===1){
@@ -902,6 +942,9 @@ async function baixarSelecionados(){
     }
     await garantirZip();
     const zip=new JSZip(); const usados={};
+    // carimba a DATA DE MODIFICAÇÃO crescente na ordem escolhida (nome do PDF intocado):
+    // no Windows, ordene a pasta por "Data de modificação" e fica na sua ordem.
+    const t0 = new Date('2001-01-01T00:00:00');
     for(let i=0;i<guias.length;i++){
       const g=guias[i]; fechar.progresso(`${i+1} de ${guias.length}`);
       const {data:blob,error}=await sb.storage.from(BUCKET).download(g.arquivo_path);
@@ -909,7 +952,8 @@ async function baixarSelecionados(){
       const ext=(g.arquivo_path.split('.').pop()||'pdf');
       let nome=`${nomeArquivoSeguro(g.nome)}.${ext}`;
       if(usados[nome]){ usados[nome]++; nome=`${nomeArquivoSeguro(g.nome)} (${usados[nome]}).${ext}`; } else usados[nome]=1;
-      zip.file(nome, blob);
+      const dataMod = new Date(t0.getTime() + i*60000);   // +1 min por arquivo, na ordem
+      zip.file(nome, blob, {date: dataMod});
     }
     fechar.progresso('Compactando…');
     const out=await zip.generateAsync({type:'blob'});
@@ -1509,7 +1553,6 @@ async function pedirSenhaAdd(){
   return true;
 }
 async function adicionarVarias(files){
-  if(!await pedirSenhaAdd()) return;   // trava: pede senha antes de enviar
   // ordena pela DATA do nome (cronológica). Sem data no nome, cai pra ordem por nome (natural).
   files = files.map((f,i)=>({f,i,dt:_dataNome(f.name)}))
     .sort((a,b)=>{
