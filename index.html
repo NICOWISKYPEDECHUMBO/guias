@@ -826,6 +826,7 @@ function renderBarraSel(){
     <button class="btn" onclick="carimbarSelecionados()">Carimbar${n?` (${n})`:''}</button>
     ${tipoDoView()!=='mala'?`<button class="btn secundario" onclick="moverSelecionados()">Mover${n?` (${n})`:''}</button>`:''}
     ${tipoDoView()==='guia'?`<button class="btn secundario" onclick="baixarSelecionados()">Baixar${n?` (${n})`:''}</button>`:''}
+    ${tipoDoView()==='guia'?`<button class="btn secundario" onclick="datarSelecionados()">Data${n?` (${n})`:''}</button>`:''}
     ${(tipoDoView()==='guia'&&estado.robo)?`<button class="btn secundario" onclick="enviarRoboLote()">🤖 Robô${n?` (${n})`:''}</button>`:''}
     <button class="btn perigo" onclick="excluirSelecionados()">Excluir${n?` (${n})`:''}</button>
     <button class="btn secundario" onclick="sairSelecao()">Cancelar</button>`;
@@ -963,6 +964,35 @@ async function baixarSelecionados(){
     setTimeout(()=>URL.revokeObjectURL(url),4000);
     fechar(); sairSelecao();
   }catch(err){ fechar(); toast('Não deu para baixar: '+(err.message||''),true); }
+}
+async function datarSelecionados(){
+  const ids=[...estado.sel];
+  if(!ids.length) return toast('Marque pelo menos uma guia.',true);
+  let d=await pedirTexto('Data na frente do nome','Digite a data (dd/mm/aaaa). Vai pra frente dos nomes marcados (a barra vira ponto).','', 'dd/mm/aaaa');
+  if(d===null) return;
+  d=(d||'').trim();
+  const m=d.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if(!m) return toast('Data inválida. Use dd/mm/aaaa.',true);
+  let dd=m[1].padStart(2,'0'), mm=m[2].padStart(2,'0'), yy=m[3]; if(yy.length===2) yy='20'+yy;
+  if(+dd<1||+dd>31||+mm<1||+mm>12) return toast('Data inválida.',true);
+  const prefixo=`${dd}.${mm}.${yy}`;   // barra vira ponto (nome de arquivo não aceita / )
+  const reDataIni=/^\s*\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{2,4}\s*-?\s*/;   // tira data antiga, se tiver
+  const guias=ids.map(id=>estado.guias.find(g=>g.id===id)).filter(Boolean);
+  const fechar=modalCarregando('Renomeando…',`0 de ${guias.length}`);
+  let ok=0;
+  try{
+    for(let i=0;i<guias.length;i++){
+      const g=guias[i]; fechar.progresso(`${i+1} de ${guias.length}`);
+      const base=(g.nome||'').replace(reDataIni,'').trim();
+      const novo=`${prefixo} - ${base}`;
+      if(novo===g.nome){ ok++; continue; }
+      const {error}=await sb.from('mala_guias').update({nome:novo}).eq('id',g.id);
+      if(error){ console.warn('datar',g.nome,error); continue; }
+      g.nome=novo; ok++;
+    }
+  } finally { fechar(); render(); }
+  toast(`${ok} guia${ok===1?'':'s'} renomeada${ok===1?'':'s'} com a data ${prefixo}.`);
+  sairSelecao();
 }
 async function excluirSelecionados(){
   const tipo=tipoDoView();
@@ -2107,7 +2137,7 @@ Object.assign(window,{irMesa,abrirMala,abrirPasta,salvarNome,salvarExames,abrirM
   enviarRoboLote,enviarRoboUma,toggleSel,
   trancarMala,acaoRenomear,acaoExcluir,verGuia,verRecorte,destrancarMala,novaMala,novaPasta,adicionarGuia,fecharModal,
   escolherArquivos,escolherPasta,
-  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,baixarSelecionados,
+  entrarSelecao,sairSelecao,selecionarTodos,carimbarSelecionados,moverSelecionados,excluirSelecionados,baixarSelecionados,datarSelecionados,
   guiaDragStart,guiaDragOver,guiaDragLeave,guiaDrop,guiaDragEnd,
   pastaDragStart,pastaDragEnd,pastaDragOver,pastaDragLeave,pastaDrop,
   malaDragStart,malaDragOver,malaDragLeave,malaDrop,malaDragEnd,
