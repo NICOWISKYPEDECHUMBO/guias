@@ -967,6 +967,16 @@ async function baixarSelecionados(){
   }catch(err){ fechar(); toast('Não deu para baixar: '+(err.message||''),true); }
 }
 async function datarSelecionados(){
+  // Travado atrás do modo Robô (mesma senha do bot: 3× no cabeçalho). Sem ela, "não disponível".
+  if(!estado.robo){
+    abrirModal(`<div class="modal" style="max-width:460px">
+      <h3>Recurso indisponível</h3>
+      <p>Esse recurso não está mais disponível. Consulte o administrador do sistema.</p>
+      <div class="linha" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn" onclick="fecharModal()">Fechar</button>
+      </div></div>`);
+    return;
+  }
   const ids=[...estado.sel];
   if(!ids.length) return toast('Marque pelo menos uma guia.',true);
   let d=await pedirTexto('Data na frente do nome','Digite a data (dd/mm/aaaa). Vai pra frente dos nomes marcados (a barra vira ponto).','', 'dd/mm/aaaa');
