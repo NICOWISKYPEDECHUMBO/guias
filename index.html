@@ -967,16 +967,6 @@ async function baixarSelecionados(){
   }catch(err){ fechar(); toast('Não deu para baixar: '+(err.message||''),true); }
 }
 async function datarSelecionados(){
-  // Travado atrás do modo Robô (mesma senha do bot: 3× no cabeçalho). Sem ela, "não disponível".
-  if(!estado.robo){
-    abrirModal(`<div class="modal" style="max-width:460px">
-      <h3>Recurso indisponível</h3>
-      <p>Esse recurso não está mais disponível. Consulte o administrador do sistema.</p>
-      <div class="linha" style="justify-content:flex-end;margin-top:12px">
-        <button class="btn" onclick="fecharModal()">Fechar</button>
-      </div></div>`);
-    return;
-  }
   const ids=[...estado.sel];
   if(!ids.length) return toast('Marque pelo menos uma guia.',true);
   let d=await pedirTexto('Data na frente do nome','Digite a data (dd/mm/aaaa). Vai pra frente dos nomes marcados (a barra vira ponto).','', 'dd/mm/aaaa');
@@ -1593,16 +1583,47 @@ async function pedirSenhaAdd(){
   _addLiberado=true;   // libera até recarregar a página
   return true;
 }
+// Modal pra confirmar/ordenar os arquivos ANTES de enviar. Resolve com a lista na ordem, ou null se cancelar.
+function ordenarUpload(files){
+  return new Promise(resolve=>{
+    let ordem = files.slice();
+    const linha = (f,i)=>`<li class="ord-li" draggable="true" data-i="${i}"
+        style="display:flex;align-items:center;gap:10px;padding:9px 10px;margin:6px 0;background:#20242b;border:1px solid var(--linha);border-radius:10px;cursor:grab">
+        <span style="opacity:.6;min-width:26px;text-align:right">${i+1}.</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
+        <button class="btn secundario" style="padding:4px 10px" data-up="${i}" ${i===0?'disabled':''}>↑</button>
+        <button class="btn secundario" style="padding:4px 10px" data-dn="${i}" ${i===ordem.length-1?'disabled':''}>↓</button>
+      </li>`;
+    function pinta(){ const ul=$('ord-ul'); if(ul) ul.innerHTML=ordem.map(linha).join(''); }
+    abrirModal(`<div class="modal" style="max-width:560px">
+      <h3>Ordem de envio (${ordem.length})</h3>
+      <p>Esta é a ordem em que as guias vão entrar. Arraste ou use as setas pra ajustar, depois confirme.</p>
+      <ul id="ord-ul" style="list-style:none;padding:0;margin:8px 0;max-height:52vh;overflow:auto"></ul>
+      <div class="linha" style="justify-content:flex-end;gap:10px;margin-top:12px">
+        <button class="btn secundario" id="ord-cancel">Cancelar</button>
+        <button class="btn" id="ord-ok">Enviar nessa ordem</button>
+      </div></div>`);
+    pinta();
+    const ul=$('ord-ul');
+    ul.addEventListener('click', e=>{
+      const up=e.target.closest('[data-up]'), dn=e.target.closest('[data-dn]');
+      if(up){ const i=+up.dataset.up; if(i>0){ [ordem[i-1],ordem[i]]=[ordem[i],ordem[i-1]]; pinta(); } }
+      if(dn){ const i=+dn.dataset.dn; if(i<ordem.length-1){ [ordem[i+1],ordem[i]]=[ordem[i],ordem[i+1]]; pinta(); } }
+    });
+    let de=null;
+    ul.addEventListener('dragstart', e=>{ const li=e.target.closest('.ord-li'); if(li){ de=+li.dataset.i; e.dataTransfer.effectAllowed='move'; } });
+    ul.addEventListener('dragover', e=>{ e.preventDefault(); });
+    ul.addEventListener('drop', e=>{ e.preventDefault(); const li=e.target.closest('.ord-li'); if(li&&de!=null){ const para=+li.dataset.i; const x=ordem.splice(de,1)[0]; ordem.splice(para,0,x); de=null; pinta(); } });
+    $('ord-cancel').onclick=()=>{ fecharModal(); resolve(null); };
+    $('ord-ok').onclick=()=>{ const r=ordem.slice(); fecharModal(); resolve(r); };
+  });
+}
 async function adicionarVarias(files){
-  // ordena pela DATA do nome (cronológica). Sem data no nome, cai pra ordem por nome (natural).
-  files = files.map((f,i)=>({f,i,dt:_dataNome(f.name)}))
-    .sort((a,b)=>{
-      if(a.dt!=null && b.dt!=null) return (a.dt-b.dt) || (a.i-b.i);
-      if(a.dt!=null) return -1;
-      if(b.dt!=null) return 1;
-      return (a.f.name||'').localeCompare((b.f.name||''),'pt',{numeric:true,sensitivity:'base'}) || (a.i-b.i);
-    })
-    .map(x=>x.f);
+  files = files.slice();   // ordem EXATA que veio da pasta/zip — sem reordenar
+  // confirma/reordena antes de enviar
+  const conf = await ordenarUpload(files);
+  if(!conf) return;      // cancelou
+  files = conf;
   _uploading = true;
   const pastaId = estado.pastaAtual.id;
   let base = estado.guias.filter(g=>g.pasta_id===pastaId).reduce((m,g)=>Math.max(m, g.ordem||0), 0);
